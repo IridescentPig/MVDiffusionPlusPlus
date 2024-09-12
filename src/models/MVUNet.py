@@ -85,11 +85,14 @@ class SelfAttention(nn.Module):
         out = self.to_out(out)
         return self.drop_out(out)
 
-class MultiViewDiffHD(nn.Module):
-    def __init__(self):
+class MultiViewUNet(nn.Module):
+    def __init__(self, unet = None):
         super().__init__()
 
-        self.unet = UNet2DConditionModel.from_config(UNET_CONFIG)
+        if unet is None:
+            self.unet = UNet2DConditionModel.from_config(UNET_CONFIG)
+        else:
+            self.unet = unet
         self.Vs = torch.nn.Parameter(torch.zeros(42, 320))
         self.s = torch.nn.Parameter(torch.zeros(1))
         self.conv = nn.Conv2d(9, 4, 1)
@@ -165,9 +168,9 @@ class MultiViewDiffHD(nn.Module):
                     down_block_res_samples += (hidden_states,)
             if m > 1:
                 _, _, h, w = hidden_states.shape
-                hidden_states = rearrange(hidden_states, '(b m) c h w -> (b m h w) c', m=m)
+                hidden_states = rearrange(hidden_states, '(b m) c h w -> b (m h w) c', m=m)
                 hidden_states = self.global_self_attn_downblocks[i](hidden_states)
-                hidden_states = rearrange(hidden_states, '(b m h w) c -> (b m) c h w', m=m, h=h, w=w)
+                hidden_states = rearrange(hidden_states, 'b (m h w) c -> (b m) c h w', m=m, h=h, w=w)
 
             if downsample_block.downsamplers is not None:
                 for downsample in downsample_block.downsamplers:
@@ -181,9 +184,9 @@ class MultiViewDiffHD(nn.Module):
 
         if m > 1:
             _, _, h, w = hidden_states.shape
-            hidden_states = rearrange(hidden_states, '(b m) c h w -> (b m h w) c', m=m)
+            hidden_states = rearrange(hidden_states, '(b m) c h w -> b (m h w) c', m=m)
             hidden_states = self.global_self_attn_midblock(hidden_states)
-            hidden_states = rearrange(hidden_states, '(b m h w) c -> (b m) c h w', m=m, h=h, w=w)
+            hidden_states = rearrange(hidden_states, 'b (m h w) c -> (b m) c h w', m=m, h=h, w=w)
 
         for attn, resnet in zip(self.unet.mid_block.attentions, self.unet.mid_block.resnets[1:]):
             hidden_states = attn(
@@ -218,9 +221,9 @@ class MultiViewDiffHD(nn.Module):
                     hidden_states = resnet(hidden_states, emb)
             if m > 1:
                 _, _, h, w = hidden_states.shape
-                hidden_states = rearrange(hidden_states, '(b m) c h w -> (b m h w) c', m=m)
+                hidden_states = rearrange(hidden_states, '(b m) c h w -> b (m h w) c', m=m)
                 hidden_states = self.global_self_attn_upblocks[i](hidden_states)
-                hidden_states = rearrange(hidden_states, '(b m h w) c -> (b m) c h w', m=m, h=h, w=w)
+                hidden_states = rearrange(hidden_states, 'b (m h w) c -> (b m) c h w', m=m, h=h, w=w)
 
             if upsample_block.upsamplers is not None:
                 for upsample in upsample_block.upsamplers:

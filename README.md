@@ -7,8 +7,8 @@
 - [ ] dataset load
 
 ### model
-- [ ] UNet
-- [ ] MVAE
+- [x] UNet(some details need to check)
+- [x] MVAE
 
 ### training
 - [ ] MVAE finetune
