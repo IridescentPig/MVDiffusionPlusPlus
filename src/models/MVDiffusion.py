@@ -71,10 +71,11 @@ class MVDiffuison(pl.LightningModule):
         for j in range(m):
             image = mvae.decode(latents[:, j]).sample
             images.append(image)
-        image = torch.stack(images, dim=1)
+        image = torch.stack(images, dim=1) # (bs, m, 4, 512, 512)
         image = (image / 2 + 0.5).clamp(0, 1) # (bs, m, 4, 512, 512)
         # TODO: remove mask channel
-        image = image.cpu().permute(0, 1, 3, 4, 2).float().numpy()
+        image = image[:, :, :3, :, :] # (bs, m, 3, 512, 512)
+        image = image.cpu().permute(0, 1, 3, 4, 2).float().numpy() # (bs, m, 512, 512, 3)
         image = (image * 255).round().astype('uint8')
 
         return image
@@ -102,6 +103,7 @@ class MVDiffuison(pl.LightningModule):
         for i, idx in enumerate(idxs):
             cond_img = batch['images'][i, idx[0]] # (4, 512, 512)
             cond_img = cond_img[:3, :, :] # remove mask channel # (3, 512, 512)
+            cond_img = (cond_img / 2 + 0.5) * 255. # (3, 512, 512)
             inputs = self.image_processor(images=cond_img, return_tensors='pt') # (1, 3, 224, 224)
             img_embeddings = self.vision_model(**inputs).last_hidden_state # (1, l, c)
             img_embeddings = self.visual_projection(img_embeddings) # (1, l, embed_dim)
@@ -150,7 +152,8 @@ class MVDiffuison(pl.LightningModule):
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
         images_pred = self.inference(batch)
-        images = ((batch['images'] / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8)
+        images = ((batch['images'] / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (bs, m, 4, 512, 512)
+        images = images[:, :, :3, :, :] # (bs, m, 3, 512, 512)
       
         # compute image & save
         if self.trainer.global_rank == 0:
@@ -171,6 +174,7 @@ class MVDiffuison(pl.LightningModule):
         for i, idx in enumerate(idxs):
             cond_img = images[i, idx[0]]
             cond_img = cond_img[:3, :, :] # remove mask channel # (3, 512, 512)
+            cond_img = (cond_img / 2 + 0.5) * 255. # (3, 512, 512)
             inputs = self.image_processor(images=cond_img, return_tensors='pt') # (1, 3, 224, 224)
             img_embeddings = self.vision_model(**inputs).last_hidden_state # (1, l, c)
             img_embeddings = self.visual_projection(img_embeddings) # (1, l, embed_dim)
@@ -207,6 +211,7 @@ class MVDiffuison(pl.LightningModule):
         images_pred = self.inference(batch)
 
         images = ((batch['images'] / 2 + 0.5) * 255).cpu().numpy().astype(np.uint8)
+        images = images[:, :, :3, :, :] # (bs, m, 3, 512, 512)
 
         image_id = batch['image_id'][0]
         
