@@ -95,7 +95,7 @@ class MultiViewUNet(nn.Module):
             self.unet = unet
         self.Vs = torch.nn.Parameter(torch.zeros(42, 320))
         self.s = torch.nn.Parameter(torch.zeros(1))
-        self.conv = nn.Conv2d(9, 4, 1)
+        # self.conv = nn.Conv2d(9, 4, 1)
         self.global_self_attn_downblocks = nn.ModuleList()
         for i in range(len(self.unet.down_blocks)):
             dim = self.unet.down_blocks[i].resnets[-1].out_channels
@@ -146,7 +146,7 @@ class MultiViewUNet(nn.Module):
         emb = emb + self.s * img_pos_emb
 
 
-        hidden_states = self.conv(hidden_states) # (bs*m, 4, 64, 64)
+        # hidden_states = self.conv(hidden_states) # (bs*m, 4, 64, 64)
         hidden_states = self.unet.conv_in(hidden_states) # (bs*m, 320, 64, 64)
 
         # unet

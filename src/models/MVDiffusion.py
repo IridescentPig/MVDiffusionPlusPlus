@@ -1,8 +1,9 @@
 import pytorch_lightning as pl
-from transformers import CLIPTextModel, CLIPTokenizer
+from transformers import CLIPTextModel, CLIPTokenizer, CLIPImageProcessor
 from .MVUNet import MultiViewUNet
 import torch
 from diffusers import AutoencoderKL, DDIMScheduler, UNet2DConditionModel
+from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import numpy as np
 import os
@@ -23,25 +24,33 @@ class MVDiffuison(pl.LightningModule):
             config['model']['model_id'], subfolder="text_encoder", torch_dtype=torch.float16)
         # TODO: CLIP image encoder
 
-        self.mvae, self.scheduler, unet = self.load_model(
-            config['model']['model_id'])
+        self.mvae, self.scheduler, unet, self.vision_model, self.visual_projection, self.image_processor = \
+            self.load_model(config['model']['model_id'])
         self.unet = MultiViewUNet(unet)
         self.trainable_params = self.unet.trainable_parameters
 
         self.save_hyperparameters()
+        self.m_pos = torch.ones(1, 64, 64)
+        self.m_neg = torch.zeros(1, 64, 64)
 
     def load_model(self, model_id):
         mvae = AutoencoderKL.from_pretrained(model_id, subfolder="vae")
         mvae.eval()
         scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
         unet = UNet2DConditionModel.from_pretrained(model_id, subfolder="unet")
-        return mvae, scheduler, unet
+        image_processor = CLIPImageProcessor.from_pretrained(model_id, subfolder="feature_extractor")
+        safety_checker = StableDiffusionSafetyChecker.from_pretrained(model_id, subfolder="safety_checker")
+        vision_model = safety_checker.vision_model
+        visual_projection = safety_checker.visual_projection
+        vision_model.eval()
+        visual_projection.eval()
+        return mvae, scheduler, unet, vision_model, visual_projection, image_processor
 
     @torch.no_grad()
     def encode_image(self, x_input, mvae: AutoencoderKL):
-        b, m, h, w, c = x_input.shape
+        b, m, c, h, w = x_input.shape
 
-        x_input = x_input.permute(0, 1, 4, 2, 3)  # (bs, m, 4, 512, 512)
+        # x_input = x_input.permute(0, 1, 4, 2, 3)  # (bs, m, 4, 512, 512)
         x_input = x_input.reshape(-1, c, h, w) # (bs*m, 4, 512, 512)
         z = mvae.encode(x_input).latent_dist  # (bs*m, 4, 64, 64)
 
@@ -85,19 +94,30 @@ class MVDiffuison(pl.LightningModule):
     def training_step(self, batch, batch_idx):      
         device = batch['images'].device
         prompt_embds = []
-        # TODO: change to image encoder
-        for prompt in batch['prompt']:
-            prompt_embds.append(self.encode_text(
-                prompt, device)[0])
-        
-        idxs = batch['idxs']
+        idxs = batch['idxs'] # (bs, m)
+        cond_num = batch['cond_num'] # int, assume the batch share the same number of condition images
+
+        bs, m = idxs.shape
+        # CLIP image encoder for cross-attn embeddings
+        for i, idx in enumerate(idxs):
+            cond_img = batch['images'][i, idx[0]] # (4, 512, 512)
+            cond_img = cond_img[:3, :, :] # remove mask channel # (3, 512, 512)
+            inputs = self.image_processor(images=cond_img, return_tensors='pt') # (1, 3, 224, 224)
+            img_embeddings = self.vision_model(**inputs).last_hidden_state # (1, l, c)
+            img_embeddings = self.visual_projection(img_embeddings) # (1, l, embed_dim)
+            prompt_embds.append(img_embeddings.repeat(m, 1, 1)) # (m, l, embed_dim)
+
         latents = self.encode_image(batch['images'], self.mvae)
         t = torch.randint(0, self.scheduler.num_train_timesteps,
                         (latents.shape[0],), device=latents.device).long()
-        prompt_embds = torch.stack(prompt_embds, dim=1)
+        prompt_embds = torch.stack(prompt_embds, dim=0) # (bs, m, l, embed_dim)
 
         noise = torch.randn_like(latents)
-        noise_z = self.scheduler.add_noise(latents, noise, t)
+        noise_z = self.scheduler.add_noise(latents, noise, t) # (bs, m, 4, 64, 64)
+        mask_cond = torch.ones(bs, cond_num, 1, 64, 64, device=device)
+        mask_gen = torch.zeros(bs, m - cond_num, 1, 64, 64, device=device)
+        mask = torch.cat([mask_cond, mask_gen], dim=1) # (bs, m, 1, 64, 64)
+        noise_z = torch.cat([noise_z, latents, mask], dim=2) # (bs, m, 9, 64, 64)
         t = t[:, None].repeat(1, latents.shape[1])
         denoise = self.unet(noise_z, t, prompt_embds, idxs)
         target = noise
@@ -141,15 +161,22 @@ class MVDiffuison(pl.LightningModule):
         images = batch['images']
         bs, m, h, w, _ = images.shape
         device = images.device
+        idxs = batch['idxs']
+        cond_num = batch['cond_num'] # int, assume the batch share the same number of condition images
+        latents = torch.randn(bs, m, 4, h // 8, w // 8, device=device)
+        encoder_latents = self.encode_image(images, self.mvae)
 
-        latents= torch.randn(bs, m, 4, h // 8, w // 8, device=device)
-
-        # TODO: change to image encoder
+        # CLIP image encoder for cross-attn embeddings
         prompt_embds = []
-        for prompt in batch['prompt']:
-            prompt_embds.append(self.encode_text(
-                prompt, device)[0])
-        prompt_embds = torch.stack(prompt_embds, dim=1)
+        for i, idx in enumerate(idxs):
+            cond_img = images[i, idx[0]]
+            cond_img = cond_img[:3, :, :] # remove mask channel # (3, 512, 512)
+            inputs = self.image_processor(images=cond_img, return_tensors='pt') # (1, 3, 224, 224)
+            img_embeddings = self.vision_model(**inputs).last_hidden_state # (1, l, c)
+            img_embeddings = self.visual_projection(img_embeddings) # (1, l, embed_dim)
+            prompt_embds.append(img_embeddings.repeat(m, 1, 1)) # (m, l, embed_dim)
+        
+        prompt_embds = torch.stack(prompt_embds, dim=0) # (bs, m, l, embed_dim)
 
         prompt_null = self.encode_text('', device)[0]
         prompt_embd = torch.cat(
@@ -157,15 +184,19 @@ class MVDiffuison(pl.LightningModule):
         
         self.scheduler.set_timesteps(self.diff_timestep, device=device)
         timesteps = self.scheduler.timesteps
-        idxs = batch['idxs']
-
+        
+        mask_cond = torch.ones(bs, cond_num, 1, 64, 64, device=device)
+        mask_gen = torch.zeros(bs, m - cond_num, 1, 64, 64, device=device)
+        mask = torch.cat([mask_cond, mask_gen], dim=1) # (bs, m, 1, 64, 64)
+        latents = torch.cat([latents, encoder_latents, mask], dim=2) # (bs, m, 9, 64, 64)
         for i, t in enumerate(timesteps):
             _timestep = torch.cat([t[None, None]] * m, dim=1)
 
             noise_pred = \
                 self.forward_cls_free(latents, _timestep, prompt_embd, idxs, self.unet)
 
-            latents = self.scheduler.step(noise_pred, t, latents).prev_sample
+            latents = self.scheduler.step(noise_pred, t, latents).prev_sample # (bs, m, 4, 64, 64)
+            latents = torch.cat([latents, encoder_latents, mask], dim=2) # (bs, m, 9, 64, 64)
         
         images_pred = self.decode_latent(latents, self.mvae)
        

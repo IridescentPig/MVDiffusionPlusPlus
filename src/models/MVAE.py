@@ -1,5 +1,6 @@
 from diffusers import AutoencoderKL
 import torch
+import pytorch_lightning as pl
 
 MVAE_CONFIG = {
     "act_fn": "silu",
@@ -34,6 +35,18 @@ def load_vae(model: AutoencoderKL, path: str):
     state_dict = {k: v for k, v in state_dict.items() if k not in ['encoder.conv_in', 'decoder.conv_out']}
     model.load_state_dict(state_dict, strict=False)
 
-def MVAE():
-    model = AutoencoderKL.from_config(MVAE_CONFIG)
-    return model
+# def MVAE():
+#     model = AutoencoderKL.from_config(MVAE_CONFIG)
+#     return model
+
+class MVAE(pl.LightningModule):
+    def __init__(self, config):
+        super().__init__()
+        self.model = AutoencoderKL.from_config(config)
+
+    def forward(self, x):
+        return self.model(x)
+    
+    def training_step(self, batch, batch_idx):
+        pass
+x
