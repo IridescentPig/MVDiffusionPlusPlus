@@ -95,12 +95,12 @@ class MVDiffuison(pl.LightningModule):
         device = batch['images'].device
         prompt_embds = []
         idxs = batch['idxs'] # (bs, m)
-        cond_num = batch['cond_num'] # int, assume the batch share the same number of condition images
+        cond_num = batch['cond_num'][0] # int, assume the batch share the same number of condition images
 
         bs, m = idxs.shape
         # CLIP image encoder for cross-attn embeddings
         for i, idx in enumerate(idxs):
-            cond_img = batch['images'][i, idx[0]] # (4, 512, 512)
+            cond_img = batch['images'][i, 0] # (4, 512, 512)
             cond_img = cond_img[:3, :, :] # remove mask channel # (3, 512, 512)
             cond_img = (cond_img / 2 + 0.5) * 255. # (3, 512, 512)
             inputs = self.image_processor(images=cond_img, return_tensors='pt') # (1, 3, 224, 224)
@@ -164,14 +164,14 @@ class MVDiffuison(pl.LightningModule):
         bs, m, h, w, _ = images.shape
         device = images.device
         idxs = batch['idxs']
-        cond_num = batch['cond_num'] # int, assume the batch share the same number of condition images
+        cond_num = batch['cond_num'][0] # int, assume the batch share the same number of condition images
         latents = torch.randn(bs, m, 4, h // 8, w // 8, device=device)
         encoder_latents = self.encode_image(images, self.mvae)
 
         # CLIP image encoder for cross-attn embeddings
         prompt_embds = []
         for i, idx in enumerate(idxs):
-            cond_img = images[i, idx[0]]
+            cond_img = images[i, 0]
             cond_img = cond_img[:3, :, :] # remove mask channel # (3, 512, 512)
             cond_img = (cond_img / 2 + 0.5) * 255. # (3, 512, 512)
             inputs = self.image_processor(images=cond_img, return_tensors='pt') # (1, 3, 224, 224)

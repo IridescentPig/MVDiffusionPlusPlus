@@ -99,6 +99,7 @@ class MultiViewUNet(nn.Module):
         self.global_self_attn_downblocks = nn.ModuleList()
         for i in range(len(self.unet.down_blocks)):
             dim = self.unet.down_blocks[i].resnets[-1].out_channels
+            # TODO: read from config
             num_heads = dim // 64
             self.global_self_attn_downblocks.append(
                 SelfAttention(

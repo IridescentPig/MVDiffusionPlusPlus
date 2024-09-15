@@ -4,7 +4,7 @@
 ### dataset
 - [ ] train dataset
 - [ ] test dataset
-- [ ] dataset load
+- [x] dataset load
 
 ### model
 - [x] UNet(some details need to check)
