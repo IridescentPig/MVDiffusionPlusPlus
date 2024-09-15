@@ -65,7 +65,7 @@ class MVAE(pl.LightningModule):
         recon_loss = torch.sum(recon_loss) / recon_loss.shape[0]
         mask_inputs = inputs[:, 3] # (B, 1, H, W)
         mask_reconstructions = reconstructions[:, 3] # (B, 1, H, W)
-        mask_reconstructions = (mask_reconstructions / 2 + 0.5).clamp(0, 1) # [-1,1] -> [0,1]
+        mask_reconstructions = mask_reconstructions.clamp(0, 1) # -> [0,1]
         mask_loss = self.bce_loss(mask_reconstructions, mask_inputs)
         mask_loss = torch.sum(mask_loss) / mask_loss.shape[0]
         loss = recon_loss + mask_loss

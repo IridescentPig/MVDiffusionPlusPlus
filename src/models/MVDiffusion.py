@@ -31,6 +31,8 @@ class MVDiffuison(pl.LightningModule):
         self.save_hyperparameters()
         self.m_pos = torch.ones(1, 64, 64)
         self.m_neg = torch.zeros(1, 64, 64)
+        self.white_img = \
+            torch.cat([torch.ones(3, 512, 512), torch.zeros(1, 512, 512)], dim=0) # (4, 512, 512)
         # TODO: add v-prediction
 
     def load_model(self, model_id):
@@ -118,7 +120,11 @@ class MVDiffuison(pl.LightningModule):
         mask_cond = torch.ones(bs, cond_num, 1, 64, 64, device=device)
         mask_gen = torch.zeros(bs, m - cond_num, 1, 64, 64, device=device)
         mask = torch.cat([mask_cond, mask_gen], dim=1) # (bs, m, 1, 64, 64)
-        noise_z = torch.cat([noise_z, latents, mask], dim=2) # (bs, m, 9, 64, 64)
+
+        latents_concat = self.white_img[None, None].repeat(bs, m - cond_num, 1, 1, 1) # (bs, m - cond_num, 4, 512, 512)
+        latents_concat = torch.cat([batch['images'][:, cond_num:], latents_concat], dim=1) # (bs, m, 4, 512, 512)
+        latents_concat = self.encode_image(latents_concat, self.mvae) # (bs, m, 4, 64, 64)
+        noise_z = torch.cat([noise_z, latents_concat, mask], dim=2) # (bs, m, 9, 64, 64)
         t = t[:, None].repeat(1, latents.shape[1])
         denoise = self.unet(noise_z, t, prompt_embds, idxs)
         target = noise

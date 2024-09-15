@@ -39,6 +39,8 @@ class MVUNetDataset(torch.utils.data.Dataset):
 
         self.to_tensor = ToTensor()
         self.train_stage = config['train_stage'] # 0, 1, 2
+        self.white_img = \
+            torch.cat([torch.ones(3, 512, 512), torch.zeros(1, 512, 512)], dim=0) * 255. # (4, 512, 512)
 
     def __len__(self):
         return len(self.image_dirs)
@@ -46,13 +48,21 @@ class MVUNetDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         base_path = self.image_dirs[idx]
         image_paths = []
-        for i in range(42):
-            image_paths.append(os.path.join(base_path, f'{i:03d}.png'))
-        
+        if self.split == 'train':
+            for i in range(42):
+                image_paths.append(os.path.join(base_path, f'{i:03d}.png'))
+        else:
+            for i in range(10):
+                image_paths.append(os.path.join(base_path, f'{i:03d}.png'))
+            image_paths += [''] * 32
+
         images = []
         for path in image_paths:
-            image = Image.open(path).convert('RGBA')
-            image = self.to_tensor(image)
+            if path == '':
+                image = self.white_img
+            else:
+                image = Image.open(path).convert('RGBA')
+                image = self.to_tensor(image)
             rgb = image[:3]
             rgb = (rgb / 255. - 0.5) * 2
             mask = image[3:]
