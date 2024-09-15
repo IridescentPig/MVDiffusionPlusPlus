@@ -57,17 +57,19 @@ class MVAE(pl.LightningModule):
         return dec, posterior
     
     def loss(self, inputs, posterior, reconstructions):
-        kl_loss = posterior.kl()
-        kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
+        # kl_loss = posterior.kl()
+        # kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
         rgb_inputs = inputs[:, :3] # (B, 3, H, W)
         rgb_reconstructions = reconstructions[:, :3] # (B, 3, H, W)
         recon_loss = torch.abs(rgb_inputs.contiguous() - rgb_reconstructions.contiguous())
         recon_loss = torch.sum(recon_loss) / recon_loss.shape[0]
         mask_inputs = inputs[:, 3] # (B, 1, H, W)
         mask_reconstructions = reconstructions[:, 3] # (B, 1, H, W)
+        mask_reconstructions = (mask_reconstructions / 2 + 0.5).clamp(0, 1) # [-1,1] -> [0,1]
         mask_loss = self.bce_loss(mask_reconstructions, mask_inputs)
         mask_loss = torch.sum(mask_loss) / mask_loss.shape[0]
-        return recon_loss, kl_loss, mask_loss
+        loss = recon_loss + mask_loss
+        return loss
 
     def configure_optimizers(self):
         lr = self.learning_rate
@@ -81,22 +83,23 @@ class MVAE(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         inputs = batch['image'] # (B, 4, H, W)
         reconstructions, posterior = self(inputs)
-        recon_loss, kl_loss, mask_loss = self.loss(inputs, posterior, reconstructions)
-        loss = recon_loss + kl_loss + mask_loss
+        loss = self.loss(inputs, posterior, reconstructions)
         self.log('train_loss', loss)
-        self.log('train_recon_loss', recon_loss)
-        self.log('train_kl_loss', kl_loss)
-        self.log('train_mask_loss', mask_loss)
+        # self.log('train_recon_loss', recon_loss)
+        # self.log('train_kl_loss', kl_loss)
+        # self.log('train_mask_loss', mask_loss)
         return loss
     
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
         images = batch['image']
         reconstructions, posterior = self(images)
-        images = ((images / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (B, 4, H, W)
-        reconstructions = ((reconstructions / 2 + 0.5) * 255).cpu().numpy().astype(np.uint8) # (B, 4, H, W)
         images = images[:, :3] # (B, 3, H, W)
+        images = ((images / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (B, 3, H, W)
         reconstructions = reconstructions[:, :3] # (B, 3, H, W)
+        reconstructions = (reconstructions / 2 + 0.5).clamp(0, 1)
+        reconstructions = reconstructions.cpu().float.numpy()
+        reconstructions = (reconstructions * 255).round().astype('uint8')
         if self.trainer.global_rank == 0:
             self.save_image(images, reconstructions, batch_idx)
 
@@ -104,16 +107,20 @@ class MVAE(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         images = batch['image']
         reconstructions, posterior = self(images)
+        images = images[:, :3] # (B, 3, H, W)
         images = ((images / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8)
-        reconstructions = ((reconstructions / 2 + 0.5) * 255).cpu().numpy().astype(np.uint8) # (B, 4, H, W)
+        reconstructions = reconstructions[:, :3] # (B, 3, H, W)
+        reconstructions = (reconstructions / 2 + 0.5).clamp(0, 1)
+        reconstructions = reconstructions.cpu().float.numpy()
+        reconstructions = (reconstructions * 255).round().astype('uint8')
         image_id = batch['image_id'][0]
         
         output_dir = batch['output_dir'][0] if 'output_dir' in batch else os.path.join(self.logger.log_dir, 'images')
         output_dir = os.path.join(output_dir, "{}".format(image_id))
         os.makedirs(output_dir, exist_ok=True)
         for i in range(images.shape[0]):
-            img = Image.fromarray(images[i, :3])
-            img_rec = Image.fromarray(reconstructions[i, :3])
+            img = Image.fromarray(images[i])
+            img_rec = Image.fromarray(reconstructions[i])
             img.save(os.path.join(output_dir, f'{batch_idx}_{i}_gt.png'))
             img_rec.save(os.path.join(output_dir, f'{batch_idx}_{i}_rec.png'))
 

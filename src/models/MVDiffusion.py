@@ -18,11 +18,10 @@ class MVDiffuison(pl.LightningModule):
         self.diff_timestep = config['model']['diff_timestep']
         self.guidance_scale = config['model']['guidance_scale']
 
-        self.tokenizer = CLIPTokenizer.from_pretrained(
-            config['model']['model_id'], subfolder="tokenizer", torch_dtype=torch.float16)
-        self.text_encoder = CLIPTextModel.from_pretrained(
-            config['model']['model_id'], subfolder="text_encoder", torch_dtype=torch.float16)
-        # TODO: CLIP image encoder
+        # self.tokenizer = CLIPTokenizer.from_pretrained(
+        #     config['model']['model_id'], subfolder="tokenizer", torch_dtype=torch.float16)
+        # self.text_encoder = CLIPTextModel.from_pretrained(
+        #     config['model']['model_id'], subfolder="text_encoder", torch_dtype=torch.float16)
 
         self.mvae, self.scheduler, unet, self.vision_model, self.visual_projection, self.image_processor = \
             self.load_model(config['model']['model_id'])
@@ -32,6 +31,7 @@ class MVDiffuison(pl.LightningModule):
         self.save_hyperparameters()
         self.m_pos = torch.ones(1, 64, 64)
         self.m_neg = torch.zeros(1, 64, 64)
+        # TODO: add v-prediction
 
     def load_model(self, model_id):
         mvae = AutoencoderKL.from_pretrained(model_id, subfolder="vae")
@@ -72,9 +72,8 @@ class MVDiffuison(pl.LightningModule):
             image = mvae.decode(latents[:, j]).sample
             images.append(image)
         image = torch.stack(images, dim=1) # (bs, m, 4, 512, 512)
-        image = (image / 2 + 0.5).clamp(0, 1) # (bs, m, 4, 512, 512)
-        # TODO: remove mask channel
         image = image[:, :, :3, :, :] # (bs, m, 3, 512, 512)
+        image = (image / 2 + 0.5).clamp(0, 1) # (bs, m, 3, 512, 512)
         image = image.cpu().permute(0, 1, 3, 4, 2).float().numpy() # (bs, m, 512, 512, 3)
         image = (image * 255).round().astype('uint8')
 
@@ -105,7 +104,7 @@ class MVDiffuison(pl.LightningModule):
             cond_img = cond_img[:3, :, :] # remove mask channel # (3, 512, 512)
             cond_img = (cond_img / 2 + 0.5) * 255. # (3, 512, 512)
             inputs = self.image_processor(images=cond_img, return_tensors='pt') # (1, 3, 224, 224)
-            img_embeddings = self.vision_model(**inputs).last_hidden_state # (1, l, c)
+            img_embeddings = self.vision_model(**inputs).last_hidden_state # (1, l, c_vis)
             img_embeddings = self.visual_projection(img_embeddings) # (1, l, embed_dim)
             prompt_embds.append(img_embeddings.repeat(m, 1, 1)) # (m, l, embed_dim)
 
@@ -176,15 +175,18 @@ class MVDiffuison(pl.LightningModule):
             cond_img = cond_img[:3, :, :] # remove mask channel # (3, 512, 512)
             cond_img = (cond_img / 2 + 0.5) * 255. # (3, 512, 512)
             inputs = self.image_processor(images=cond_img, return_tensors='pt') # (1, 3, 224, 224)
-            img_embeddings = self.vision_model(**inputs).last_hidden_state # (1, l, c)
+            img_embeddings = self.vision_model(**inputs).last_hidden_state # (1, l, c_vis)
             img_embeddings = self.visual_projection(img_embeddings) # (1, l, embed_dim)
             prompt_embds.append(img_embeddings.repeat(m, 1, 1)) # (m, l, embed_dim)
         
         prompt_embds = torch.stack(prompt_embds, dim=0) # (bs, m, l, embed_dim)
 
-        prompt_null = self.encode_text('', device)[0]
-        prompt_embd = torch.cat(
-            [prompt_null[:, None].repeat(1, m, 1, 1), prompt_embds])
+        # prompt_null = self.encode_text('', device)[0]
+        null_image = torch.zeros(3, h, w, device=device)
+        prompt_null = self.image_processor(images=null_image, return_tensors='pt')
+        prompt_null = self.vision_model(**prompt_null).last_hidden_state # (1, l, c_vis)
+        prompt_null = self.visual_projection(prompt_null) # (1, l, embed_dim)
+        prompt_embd = torch.cat([prompt_null[:, None].repeat(bs, m, 1, 1), prompt_embds]) # (bs*2, m, l, embed_dim)
         
         self.scheduler.set_timesteps(self.diff_timestep, device=device)
         timesteps = self.scheduler.timesteps
