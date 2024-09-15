@@ -2,6 +2,7 @@
 
 ## TODO
 ### dataset
+- [x] MVAE train dataset
 - [ ] train dataset
 - [ ] test dataset
 - [x] dataset load
@@ -12,5 +13,5 @@
 
 ### training
 - [ ] MVAE finetune
-- [ ] View dropout training strategy
+- [x] View dropout training strategy
 - [ ] Three-stage training strategy
