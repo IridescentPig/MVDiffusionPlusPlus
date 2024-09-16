@@ -62,11 +62,11 @@ class MVUNetDataset(torch.utils.data.Dataset):
                 image = self.white_img
             else:
                 image = Image.open(path).convert('RGBA')
-                image = self.to_tensor(image)
+                image = self.to_tensor(image) # (4, H, W), [0, 1]
             rgb = image[:3]
-            rgb = (rgb / 255. - 0.5) * 2
+            rgb = (rgb - 0.5) * 2. # [-1, 1]
             mask = image[3:]
-            mask = torch.where(mask > 0., torch.ones_like(mask), torch.zeros_like(mask))
+            mask = torch.where(mask > 0., torch.ones_like(mask), torch.zeros_like(mask)) # binarize mask
             image = torch.cat([rgb, mask], dim=0) # (4, H, W)
             images.append(image)
 

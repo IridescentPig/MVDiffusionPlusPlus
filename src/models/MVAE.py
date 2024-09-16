@@ -34,17 +34,18 @@ MVAE_CONFIG = {
     ]
 }
 
-def load_vae(model: AutoencoderKL, path: str):
-    state_dict = torch.load(path)
-    state_dict = {k: v for k, v in state_dict.items() if k not in ['encoder.conv_in', 'decoder.conv_out']}
-    model.load_state_dict(state_dict, strict=False)
-
 class MVAE(pl.LightningModule):
     def __init__(self, model_config, train_config):
         super().__init__()
         self.model = AutoencoderKL.from_config(model_config)
         self.bce_loss = nn.BCELoss()
         self.learning_rate = train_config.get('learning_rate', 4.5e-6)
+
+    def load_pretrained_vae(self, path):
+        state_dict = torch.load(path, map_location='cpu')
+        print(state_dict.keys())
+        state_dict = {k: v for k, v in state_dict.items() if not k.startswith('encoder.conv_in') and not k.startswith('decoder.conv_out')}
+        self.model.load_state_dict(state_dict, strict=False)
 
     def forward(self, x, sample_posterior=True):
         posterior = self.model.encode(x).latent_dist

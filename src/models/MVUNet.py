@@ -100,31 +100,34 @@ class MultiViewUNet(nn.Module):
         for i in range(len(self.unet.down_blocks)):
             dim = self.unet.down_blocks[i].resnets[-1].out_channels
             # TODO: read from config
-            num_heads = dim // 64
+            num_heads = self.unet.down_blocks[i].attentions[-1].num_attention_heads
+            attention_head_dim = self.unet.down_blocks[i].attentions[-1].attention_head_dim
             self.global_self_attn_downblocks.append(
                 SelfAttention(
                     dim=dim,
                     heads=num_heads,
-                    dim_head=64,
+                    dim_head=attention_head_dim,
                 )
             )
         
         self.global_self_attn_midblock = \
             SelfAttention(
                 dim=self.unet.mid_block.resnets[-1].out_channels,
-                heads=self.unet.mid_block.resnets[-1].out_channels // 64,
-                dim_head=64,
+                heads=self.unet.mid_block.attentions[-1].num_attention_heads,
+                dim_head=self.unet.mid_block.attentions[-1].attention_head_dim,
             )
         
         self.global_self_attn_upblocks = nn.ModuleList()
         for i in range(len(self.unet.up_blocks)):
-            dim = self.unet.up_blocks[i].resnets[-1].out_channels
-            num_heads = dim // 64
+            # dim = self.unet.up_blocks[i].resnets[-1].out_channels
+            # num_heads = dim // 64
+            num_heads = self.unet.up_blocks[i].attentions[-1].num_attention_heads
+            attention_head_dim = self.unet.up_blocks[i].attentions[-1].attention_head_dim
             self.global_self_attn_upblocks.append(
                 SelfAttention(
                     dim=dim,
                     heads=num_heads,
-                    dim_head=64,
+                    dim_head=attention_head_dim,
                 )
             )
 
