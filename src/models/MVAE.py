@@ -40,6 +40,8 @@ class MVAE(pl.LightningModule):
         self.model = AutoencoderKL.from_config(model_config)
         self.bce_loss = nn.BCELoss()
         self.learning_rate = train_config.get('learning_rate', 4.5e-6)
+        torch.nn.init.xavier_uniform_(self.model.encoder.conv_in.weight)
+        torch.nn.init.xavier_uniform_(self.model.decoder.conv_out.weight)
 
     def load_pretrained_vae(self, path):
         state_dict = torch.load(path, map_location='cpu')
@@ -68,7 +70,7 @@ class MVAE(pl.LightningModule):
         mask_reconstructions = reconstructions[:, 3] # (B, 1, H, W)
         mask_reconstructions = mask_reconstructions.clamp(0, 1) # -> [0,1]
         mask_loss = self.bce_loss(mask_reconstructions, mask_inputs)
-        mask_loss = torch.sum(mask_loss) / mask_loss.shape[0]
+        # mask_loss = torch.sum(mask_loss) / mask_loss.shape[0]
         loss = recon_loss + mask_loss
         return loss
 
@@ -82,7 +84,7 @@ class MVAE(pl.LightningModule):
         return {'optimizer': optimizer}
     
     def training_step(self, batch, batch_idx):
-        inputs = batch['image'] # (B, 4, H, W)
+        inputs = batch['images'] # (B, 4, H, W)
         reconstructions, posterior = self(inputs)
         loss = self.loss(inputs, posterior, reconstructions)
         self.log('train_loss', loss)
@@ -93,7 +95,7 @@ class MVAE(pl.LightningModule):
     
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
-        images = batch['image']
+        images = batch['images']
         reconstructions, posterior = self(images)
         images = images[:, :3] # (B, 3, H, W)
         images = ((images / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (B, 3, H, W)
@@ -106,7 +108,7 @@ class MVAE(pl.LightningModule):
 
     @torch.no_grad()
     def test_step(self, batch, batch_idx):
-        images = batch['image']
+        images = batch['images']
         reconstructions, posterior = self(images)
         images = images[:, :3] # (B, 3, H, W)
         images = ((images / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8)

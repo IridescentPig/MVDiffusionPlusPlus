@@ -1,0 +1,8 @@
+dataset:
+  path: data/MVAE
+model:
+  pretrained_vae: /Users/pig/HuggingFace/models/stabilityai/stable-diffusion-2-inpainting/vae/diffusion_pytorch_model.bin
+train:
+  learning_rate: 4e-5
+  batch_size: 64
+  
