@@ -12,6 +12,6 @@
 - [x] MVAE
 
 ### training
-- [ ] MVAE finetune
+- [x] MVAE finetune
 - [x] View dropout training strategy
-- [ ] Three-stage training strategy
+- [x] Three-stage training strategy

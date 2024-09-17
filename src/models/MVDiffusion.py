@@ -33,7 +33,16 @@ class MVDiffuison(pl.LightningModule):
         self.m_neg = torch.zeros(1, 64, 64)
         self.white_img = \
             torch.cat([torch.ones(3, 512, 512), torch.zeros(1, 512, 512)], dim=0) # (4, 512, 512)
-        # TODO: add v-prediction
+        # epsilon-prediction or velocity-prediction
+        scheduler_config = self.scheduler.config
+        if config['model']['prediction_type'] is None:
+            self.prediction_type = scheduler_config.prediction_type
+        else:
+            self.prediction_type = config['model']['prediction_type']
+        
+        scheduler_config['prediction_type'] = self.prediction_type
+        self.scheduler = DDIMScheduler.from_config(scheduler_config)
+
 
     def load_model(self, model_id):
         mvae = AutoencoderKL.from_pretrained(model_id, subfolder="vae")
@@ -127,7 +136,10 @@ class MVDiffuison(pl.LightningModule):
         noise_z = torch.cat([noise_z, latents_concat, mask], dim=2) # (bs, m, 9, 64, 64)
         t = t[:, None].repeat(1, latents.shape[1])
         denoise = self.unet(noise_z, t, prompt_embds, idxs)
-        target = noise
+        if self.prediction_type == 'epsilon':
+            target = noise
+        else:
+            target = self.scheduler.get_velocity(latents, noise, t)
 
         # eps mode
         loss = torch.nn.functional.mse_loss(denoise, target)
