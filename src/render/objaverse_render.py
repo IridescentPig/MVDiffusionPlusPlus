@@ -48,6 +48,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_images", type=int, default=12)
 parser.add_argument("--camera_dist", type=float, default=1.5)
+parser.add_argument("--type", type=str, default='MVAE', choices=['MVAE', 'MVUNET'])
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
 args = parser.parse_args(argv)
@@ -72,6 +73,14 @@ scene.cycles.transmission_bounces = 3
 scene.cycles.filter_width = 0.01
 scene.cycles.use_denoising = True
 scene.render.film_transparent = True
+
+AZIMUTHS = [0., 45., 90., 135., 180., 225., 270., 315.]
+AZIMUTHS = [math.radians(a) for a in AZIMUTHS] # 8 azimuths
+ELEVATIONS = [60., 30., 0., -30.]
+ELEVATIONS = [math.radians(e) for e in ELEVATIONS] # 4 elevations
+FOV = math.radians(60)
+COND_NUM = 10
+GEN_NUM = 32
 
 
 def sample_point_on_sphere(radius: float) -> Tuple[float, float, float]:
@@ -209,6 +218,68 @@ def save_images(object_file: str) -> None:
         scene.render.filepath = render_path
         bpy.ops.render.render(write_still=True)
 
+def setup_camera_mvunet(fov):
+    cam = scene.objects["Camera"]
+    cam.location = (0, 1.2, 0)
+    cam.data.angle = fov
+    cam.data.sensor_width = 32
+    cam_constraint = cam.constraints.new(type="TRACK_TO")
+    cam_constraint.track_axis = "TRACK_NEGATIVE_Z"
+    cam_constraint.up_axis = "UP_Y"
+    return cam, cam_constraint
+
+def save_images_mvunet(object_file: str, fov=FOV) -> None:
+    """Saves rendered images of the object in the scene."""
+    os.makedirs(args.output_dir, exist_ok=True)
+    reset_scene()
+    # load the object
+    load_object(object_file)
+    object_uid = os.path.basename(object_file).split(".")[0]
+    normalize_scene()
+    add_lighting()
+    cam, cam_constraint = setup_camera_mvunet(fov)
+    # create an empty object to track
+    empty = bpy.data.objects.new("Empty", None)
+    scene.collection.objects.link(empty)
+    cam_constraint.target = empty
+
+    # condition images rendering
+    first_cond_azimuth = 0
+    for i in range(COND_NUM):
+        # set the camera position
+        azimuth = random.choice(AZIMUTHS)
+        if i == 0:
+            first_cond_azimuth = azimuth
+        elevation = random.uniform(math.radians(-10.), math.radians(45.))
+        camera_dist = random.uniform(1.5, 2.2)
+        point = (
+            camera_dist * math.cos(elevation) * math.cos(azimuth),
+            camera_dist * math.cos(elevation) * math.sin(azimuth),
+            camera_dist * math.sin(elevation),
+        )
+        cam.location = point
+        # render the image
+        render_path = os.path.join(args.output_dir, object_uid, f"{i:03d}.png")
+        scene.render.filepath = render_path
+        bpy.ops.render.render(write_still=True)
+    
+    # generate images rendering
+    for i in range(GEN_NUM):
+        # set the camera position
+        azimuth = AZIMUTHS[i % len(AZIMUTHS)] + first_cond_azimuth
+        elevation = ELEVATIONS[i // len(AZIMUTHS)]
+        camera_dist = 1.5
+        point = (
+            camera_dist * math.cos(elevation) * math.cos(azimuth),
+            camera_dist * math.cos(elevation) * math.sin(azimuth),
+            camera_dist * math.sin(elevation),
+        )
+        cam.location = point
+        # render the image
+        render_path = os.path.join(args.output_dir, object_uid, f"{i+COND_NUM:03d}.png")
+        scene.render.filepath = render_path
+        bpy.ops.render.render(write_still=True)
+    
 
 def download_object(object_url: str) -> str:
     """Download the object and return the path."""
@@ -232,7 +303,10 @@ if __name__ == "__main__":
             local_path = download_object(args.object_path)
         else:
             local_path = args.object_path
-        save_images(local_path)
+        if args.type == 'MVAE':
+            save_images(local_path)
+        else:
+            save_images_mvunet(local_path)
         end_i = time.time()
         print("Finished", local_path, "in", end_i - start_i, "seconds")
         # delete the object if it was downloaded
