@@ -101,7 +101,7 @@ class MaskVAE(pl.LightningModule):
         images = ((images / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (B, 3, H, W)
         reconstructions = reconstructions[:, :3] # (B, 3, H, W)
         reconstructions = (reconstructions / 2 + 0.5).clamp(0, 1)
-        reconstructions = reconstructions.cpu().float.numpy()
+        reconstructions = reconstructions.cpu().float().numpy()
         reconstructions = (reconstructions * 255).round().astype('uint8')
         if self.trainer.global_rank == 0:
             self.save_image(images, reconstructions, batch_idx)
@@ -114,7 +114,7 @@ class MaskVAE(pl.LightningModule):
         images = ((images / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8)
         reconstructions = reconstructions[:, :3] # (B, 3, H, W)
         reconstructions = (reconstructions / 2 + 0.5).clamp(0, 1)
-        reconstructions = reconstructions.cpu().float.numpy()
+        reconstructions = reconstructions.cpu().float().numpy()
         reconstructions = (reconstructions * 255).round().astype('uint8')
         image_id = batch['image_id'][0]
         

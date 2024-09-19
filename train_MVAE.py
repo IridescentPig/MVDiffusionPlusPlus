@@ -101,8 +101,9 @@ if __name__ == "__main__":
             filename='epoch={epoch}-loss={train_loss:.4f}'
         )
 
+    save_dir = config['train'].get('save_dir', 'logs/tb_logs')
     logger = TensorBoardLogger(
-        save_dir='logs/tb_logs', 
+        save_dir=save_dir, 
         name=args.exp_name, 
         default_hp_metric=False
     )
