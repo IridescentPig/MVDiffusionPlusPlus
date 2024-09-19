@@ -32,6 +32,8 @@ class MaskedVAEDataset(torch.utils.data.Dataset):
         self.base_data_path = os.path.join(path, split)
         self.image_paths = []
         for dir in os.listdir(self.base_data_path):
+            if not os.path.isdir(os.path.join(self.base_data_path, dir)):
+                continue
             for file in os.listdir(os.path.join(self.base_data_path, dir)):
                 if file.endswith('.png'):
                     self.image_paths.append(os.path.join(self.base_data_path, dir, file))

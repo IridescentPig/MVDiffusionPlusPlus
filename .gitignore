@@ -169,3 +169,4 @@ results/
 logs/
 *.sh
 *.yaml
+images/

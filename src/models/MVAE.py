@@ -98,8 +98,10 @@ class MaskVAE(pl.LightningModule):
         images = batch['images']
         reconstructions, posterior = self(images)
         images = images[:, :3] # (B, 3, H, W)
+        images = images.permute(0, 2, 3, 1) # (B, H, W, 3)
         images = ((images / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (B, 3, H, W)
         reconstructions = reconstructions[:, :3] # (B, 3, H, W)
+        reconstructions = reconstructions.permute(0, 2, 3, 1) # (B, H, W, 3)
         reconstructions = (reconstructions / 2 + 0.5).clamp(0, 1)
         reconstructions = reconstructions.cpu().float().numpy()
         reconstructions = (reconstructions * 255).round().astype('uint8')
@@ -111,8 +113,10 @@ class MaskVAE(pl.LightningModule):
         images = batch['images']
         reconstructions, posterior = self(images)
         images = images[:, :3] # (B, 3, H, W)
+        images = images.permute(0, 2, 3, 1) # (B, H, W, 3)
         images = ((images / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8)
         reconstructions = reconstructions[:, :3] # (B, 3, H, W)
+        reconstructions = reconstructions.permute(0, 2, 3, 1) # (B, H, W, 3)
         reconstructions = (reconstructions / 2 + 0.5).clamp(0, 1)
         reconstructions = reconstructions.cpu().float().numpy()
         reconstructions = (reconstructions * 255).round().astype('uint8')
