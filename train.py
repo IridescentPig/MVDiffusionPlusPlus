@@ -14,7 +14,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        'main_cfg_path', type=str, help='main config path')
+        '--main_cfg_path', type=str, help='main config path')
     parser.add_argument(
         '--exp_name', type=str, default='mvae')
     parser.add_argument(

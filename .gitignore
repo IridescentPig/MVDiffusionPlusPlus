@@ -167,3 +167,4 @@ data/
 .DS_Store
 results/
 logs/
+*.sh
