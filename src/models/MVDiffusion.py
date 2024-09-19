@@ -9,7 +9,7 @@ import numpy as np
 import os
 from PIL import Image
 
-class MVDiffuison(pl.LightningModule):
+class MultiViewDiffuison(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
 

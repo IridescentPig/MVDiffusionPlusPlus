@@ -1,11 +1,11 @@
 import torch
 import argparse
-from src.dataset import MVAEDataset
+from src.dataset.MVAEDataset import MaskedVAEDataset
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 import yaml
-from src.models.MVAE import MVAE, MVAE_CONFIG
+from src.models.MVAE import MaskVAE, MVAE_CONFIG
 from torch.utils.data import DataLoader
 # from pytorch_lightning.cli import LightningCLI
 
@@ -30,7 +30,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        'main_cfg_path', type=str, help='main config path')
+        '--main_cfg_path', type=str, help='main config path')
     parser.add_argument(
         '--exp_name', type=str, default='mvae')
     parser.add_argument(
@@ -58,8 +58,8 @@ if __name__ == "__main__":
     config['train']['batch_size'] = args.batch_size
     num_workers = args.num_workers
 
-    train_dataset = MVAEDataset(path=config['data']['path'], split='train')
-    val_dataset = MVAEDataset(path=config['data']['path'], split='val')
+    train_dataset = MaskedVAEDataset(path=config['data']['path'], split='train')
+    val_dataset = MaskedVAEDataset(path=config['data']['path'], split='val')
 
     train_loader = DataLoader(
         train_dataset, 
@@ -81,7 +81,7 @@ if __name__ == "__main__":
     else:
         model_config = MVAE_CONFIG
 
-    model = MVAE(model_config, config['train'])
+    model = MaskVAE(model_config, config['train'])
     
     if args.ckpt_path is not None:
         model.load_state_dict(

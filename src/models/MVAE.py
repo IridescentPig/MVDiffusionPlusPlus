@@ -34,7 +34,7 @@ MVAE_CONFIG = {
     ]
 }
 
-class MVAE(pl.LightningModule):
+class MaskVAE(pl.LightningModule):
     def __init__(self, model_config, train_config):
         super().__init__()
         self.model = AutoencoderKL.from_config(model_config)

@@ -1,5 +1,5 @@
-from src.dataset.MVUNetDataset import MVUNetDataset, collate_fn
-from src.models.MVDiffusion import MVDiffuison
+from src.dataset.MVUNetDataset import MultiViewUNetDataset, collate_fn
+from src.models.MVDiffusion import MultiViewDiffuison
 from torch.utils.data import DataLoader
 import argparse
 import yaml
@@ -38,8 +38,8 @@ if __name__ == '__main__':
     config['train']['batch_size'] = args.batch_size
     num_workers = args.num_workers
 
-    train_dataset = MVUNetDataset(path=config['data']['path'], split='train', config=config['train'])
-    val_dataset = MVUNetDataset(path=config['data']['path'], split='val', config={})
+    train_dataset = MultiViewUNetDataset(path=config['data']['path'], split='train', config=config['train'])
+    val_dataset = MultiViewUNetDataset(path=config['data']['path'], split='val', config={})
 
     train_loader = DataLoader(
         train_dataset, 
@@ -59,7 +59,7 @@ if __name__ == '__main__':
         drop_last=False
     )
 
-    model = MVDiffuison(config)
+    model = MultiViewDiffuison(config)
     if args.ckpt_path is not None:
         model.load_state_dict(
             torch.load(args.ckpt_path, map_location='cpu')['state_dict'], 

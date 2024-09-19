@@ -4,7 +4,7 @@ from PIL import Image
 from torchvision.transforms import ToTensor
 import random
 
-class MVAEDataset(torch.utils.data.Dataset):
+class MaskedVAEDataset(torch.utils.data.Dataset):
     """
     base_data_path
     ├── train
@@ -27,6 +27,7 @@ class MVAEDataset(torch.utils.data.Dataset):
     │   └── ...
     """
     def __init__(self, path, split):
+        super().__init__()
         self.split = split
         self.base_data_path = os.path.join(path, split)
         self.image_paths = []

@@ -4,7 +4,7 @@ from PIL import Image
 import os
 
 
-class MVUNetDataset(torch.utils.data.Dataset):
+class MultiViewUNetDataset(torch.utils.data.Dataset):
     """
     base_data_path
     ├── train
@@ -30,6 +30,7 @@ class MVUNetDataset(torch.utils.data.Dataset):
     │   └── ...
     """
     def __init__(self, path, split, config):
+        super().__init__()
         self.split = split
         self.base_data_path = os.path.join(path, split)
         self.image_dirs = []
