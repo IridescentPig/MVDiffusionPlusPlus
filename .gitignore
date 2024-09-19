@@ -165,3 +165,5 @@ test*.py
 *.png
 data/
 .DS_Store
+results/
+logs/
