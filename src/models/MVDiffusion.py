@@ -204,8 +204,8 @@ class MultiViewDiffuison(pl.LightningModule):
 
         # prompt_null = self.encode_text('', device)[0]
         null_image = torch.zeros(3, h, w, device=device)
-        prompt_null = self.image_processor(images=null_image, return_tensors='pt')
-        prompt_null = self.vision_model(**prompt_null).last_hidden_state # (1, l, c_vis)
+        prompt_null = self.image_processor(images=null_image, return_tensors='pt').pixel_values.to(device) # (1, 3, 224, 224)
+        prompt_null = self.vision_model(prompt_null).last_hidden_state # (1, l, c_vis)
         prompt_null = self.visual_projection(prompt_null) # (1, l, embed_dim)
         prompt_embd = torch.cat([prompt_null[:, None].repeat(bs, m, 1, 1), prompt_embds]) # (bs*2, m, l, embed_dim)
         
