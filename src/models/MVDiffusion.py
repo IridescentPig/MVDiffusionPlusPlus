@@ -182,7 +182,7 @@ class MultiViewDiffuison(pl.LightningModule):
     @torch.no_grad()
     def inference(self, batch):
         images = batch['images']
-        bs, m, h, w, _ = images.shape
+        bs, m, c, h, w = images.shape
         device = images.device
         idxs = batch['idxs']
         cond_num = batch['cond_num'][0] # int, assume the batch share the same number of condition images
