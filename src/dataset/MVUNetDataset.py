@@ -170,5 +170,6 @@ def collate_fn(batch):
         'idxs': idxs,
         'image_id': image_ids,
         'train_stage': train_stages,
-        'split': splits
+        'split': splits,
+        'cond_num': [cond_num] * batch_size,
     }
