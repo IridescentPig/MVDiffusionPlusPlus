@@ -117,8 +117,8 @@ class MultiViewDiffuison(pl.LightningModule):
             cond_img = batch['images'][i, 0] # (4, 512, 512)
             cond_img = cond_img[:3, :, :] # remove mask channel # (3, 512, 512)
             cond_img = (cond_img / 2 + 0.5) # (3, 512, 512)
-            inputs = self.image_processor(images=cond_img, return_tensors='pt') # (1, 3, 224, 224)
-            img_embeddings = self.vision_model(**inputs).last_hidden_state # (1, l, c_vis)
+            inputs = self.image_processor(images=cond_img, return_tensors='pt').pixel_values.to(device) # (1, 3, 224, 224)
+            img_embeddings = self.vision_model(inputs).last_hidden_state # (1, l, c_vis)
             img_embeddings = self.visual_projection(img_embeddings) # (1, l, embed_dim)
             prompt_embds.append(img_embeddings.repeat(m, 1, 1)) # (m, l, embed_dim)
 
@@ -195,8 +195,8 @@ class MultiViewDiffuison(pl.LightningModule):
             cond_img = images[i, 0]
             cond_img = cond_img[:3, :, :] # remove mask channel # (3, 512, 512)
             cond_img = (cond_img / 2 + 0.5) # (3, 512, 512)
-            inputs = self.image_processor(images=cond_img, return_tensors='pt') # (1, 3, 224, 224)
-            img_embeddings = self.vision_model(**inputs).last_hidden_state # (1, l, c_vis)
+            inputs = self.image_processor(images=cond_img, return_tensors='pt').pixel_values.to(device) # (1, 3, 224, 224)
+            img_embeddings = self.vision_model(inputs).last_hidden_state # (1, l, c_vis)
             img_embeddings = self.visual_projection(img_embeddings) # (1, l, embed_dim)
             prompt_embds.append(img_embeddings.repeat(m, 1, 1)) # (m, l, embed_dim)
         
