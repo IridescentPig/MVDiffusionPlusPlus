@@ -35,7 +35,7 @@ class MultiViewDiffuison(pl.LightningModule):
             torch.cat([torch.ones(3, 512, 512), torch.zeros(1, 512, 512)], dim=0) # (4, 512, 512)
         # epsilon-prediction or velocity-prediction
         scheduler_config = self.scheduler.config
-        if config['model']['prediction_type'] is None:
+        if config['model'].get('prediction_type', None) is None:
             self.prediction_type = scheduler_config.prediction_type
         else:
             self.prediction_type = config['model']['prediction_type']

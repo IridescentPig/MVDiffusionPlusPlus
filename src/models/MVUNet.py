@@ -6,12 +6,7 @@ from diffusers import UNet2DConditionModel
 
 UNET_CONFIG = {
     "act_fn": "silu",
-    "attention_head_dim": [
-        5,
-        10,
-        20,
-        20
-    ],
+    "attention_head_dim": 8,
     "block_out_channels": [
         320,
         640,
@@ -19,7 +14,7 @@ UNET_CONFIG = {
         1280
     ],
     "center_input_sample": False,
-    "cross_attention_dim": 1024,
+    "cross_attention_dim": 768,
     "down_block_types": [
         "CrossAttnDownBlock2D",
         "CrossAttnDownBlock2D",
@@ -27,7 +22,6 @@ UNET_CONFIG = {
         "DownBlock2D"
     ],
     "downsample_padding": 1,
-    "dual_cross_attention": False,
     "flip_sin_to_cos": True,
     "freq_shift": 0,
     "in_channels": 9,
@@ -42,8 +36,7 @@ UNET_CONFIG = {
         "CrossAttnUpBlock2D",
         "CrossAttnUpBlock2D",
         "CrossAttnUpBlock2D"
-    ],
-    "use_linear_projection": True
+    ]
 }
 
 class SelfAttention(nn.Module):
@@ -97,11 +90,15 @@ class MultiViewUNet(nn.Module):
         self.s = torch.nn.Parameter(torch.zeros(1))
         # self.conv = nn.Conv2d(9, 4, 1)
         self.global_self_attn_downblocks = nn.ModuleList()
+        if isinstance(self.unet.config['attention_head_dim'], list):
+            num_attention_heads = self.unet.config['attention_head_dim']
+        else:
+            num_attention_heads = [self.unet.config['attention_head_dim']] * len(self.unet.down_blocks)
         for i in range(len(self.unet.down_blocks)):
             dim = self.unet.down_blocks[i].resnets[-1].out_channels
             # TODO: read from config
-            num_heads = self.unet.down_blocks[i].attentions[-1].num_attention_heads
-            attention_head_dim = self.unet.down_blocks[i].attentions[-1].attention_head_dim
+            num_heads = num_attention_heads[i]
+            attention_head_dim = dim // num_heads
             self.global_self_attn_downblocks.append(
                 SelfAttention(
                     dim=dim,
@@ -113,16 +110,17 @@ class MultiViewUNet(nn.Module):
         self.global_self_attn_midblock = \
             SelfAttention(
                 dim=self.unet.mid_block.resnets[-1].out_channels,
-                heads=self.unet.mid_block.attentions[-1].num_attention_heads,
-                dim_head=self.unet.mid_block.attentions[-1].attention_head_dim,
+                heads=num_attention_heads[-1],
+                dim_head=dim // num_attention_heads[-1],
             )
         
         self.global_self_attn_upblocks = nn.ModuleList()
+        num_attention_heads = num_attention_heads[::-1]
         for i in range(len(self.unet.up_blocks)):
-            # dim = self.unet.up_blocks[i].resnets[-1].out_channels
+            dim = self.unet.up_blocks[i].resnets[-1].out_channels
             # num_heads = dim // 64
-            num_heads = self.unet.up_blocks[i].attentions[-1].num_attention_heads
-            attention_head_dim = self.unet.up_blocks[i].attentions[-1].attention_head_dim
+            num_heads = num_attention_heads[i]
+            attention_head_dim = dim // num_heads
             self.global_self_attn_upblocks.append(
                 SelfAttention(
                     dim=dim,
