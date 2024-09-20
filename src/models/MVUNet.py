@@ -130,8 +130,7 @@ class MultiViewUNet(nn.Module):
             )
 
         self.trainable_parameters = \
-            [(list(self.unet.parameters()) + \
-              list(self.global_self_attn_downblocks.parameters()) + \
+            [(list(self.global_self_attn_downblocks.parameters()) + \
               list(self.global_self_attn_midblock.parameters()) + \
               list(self.global_self_attn_upblocks.parameters()) + \
               [self.Vs] + [self.s], 1.0)]
