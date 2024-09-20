@@ -55,6 +55,9 @@ class MultiViewDiffuison(pl.LightningModule):
         visual_projection = safety_checker.visual_projection
         vision_model.eval()
         visual_projection.eval()
+        mvae.requires_grad_(False)
+        vision_model.requires_grad_(False)
+        visual_projection.requires_grad_(False)
         return mvae, scheduler, unet, vision_model, visual_projection, image_processor
 
     @torch.no_grad()
