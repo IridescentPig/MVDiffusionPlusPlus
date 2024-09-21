@@ -120,7 +120,9 @@ def collate_fn(batch):
             cond_num = 1
             gen_num = 8
             cond_idxs = torch.zeros((batch_size, cond_num)).long() # (B, 1)
-            gen_idxs = torch.randint(10, 42, (batch_size, gen_num)).long() # (B, 8)
+            gen_idxs = generate_batched_sorted_unique_random(
+                batch_size, gen_num, min_val=10, max_val=42
+            ).long() # (B, 8)
             cond_images = raw_images[torch.arange(batch_size).unsqueeze(1), cond_idxs] # (B, 1, 4, H, W)
             gen_images = raw_images[torch.arange(batch_size).unsqueeze(1), gen_idxs] # (B, 8, 4, H, W)
             images = torch.cat([cond_images, gen_images], dim=1) # (B, 9, 4, H, W)
@@ -170,7 +172,9 @@ def collate_fn(batch):
         cond_num = 1
         gen_num = 8
         cond_idxs = torch.zeros((batch_size, cond_num)).long() # (B, 1)
-        gen_idxs = torch.randint(10, 42, (batch_size, gen_num)).long() # (B, 8)
+        gen_idxs = generate_batched_sorted_unique_random(
+            batch_size, gen_num, min_val=10, max_val=42
+        ).long() # (B, 8)
         cond_images = raw_images[torch.arange(batch_size).unsqueeze(1), cond_idxs] # (B, 1, 4, H, W)
         gen_images = GEN_IMAGE.unsqueeze(0).unsqueeze(0).expand(batch_size, gen_num, -1, -1, -1) # (B, 8, 4, H, W)
         images = torch.cat([cond_images, gen_images], dim=1) # (B, 9, 4, H, W)

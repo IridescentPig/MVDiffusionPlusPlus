@@ -57,6 +57,7 @@ class SelfAttention(nn.Module):
         self.drop_out = nn.Dropout(dropout)
 
     def forward(self, x):
+        b, n, c = x.shape
         h = self.heads
 
         q = self.to_q(x)
@@ -64,19 +65,23 @@ class SelfAttention(nn.Module):
         k = self.to_k(x)
         v = self.to_v(x)
 
-        q, k, v = map(lambda t: rearrange(
-            t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
+        # q, k, v = map(lambda t: rearrange(
+        #     t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
+        q = q.reshape(b, n, h, -1).transpose(1, 2) # b h n d
+        k = k.reshape(b, n, h, -1).transpose(1, 2) # b h n d
+        v = v.reshape(b, n, h, -1).transpose(1, 2) # b h n d
 
         # sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
-        attention_score = torch.matmul(q, k.transpose(-1, -2)) * self.scale # (b h) n n
+        attention_score = torch.matmul(q, k.transpose(-1, -2)) * self.scale # b h n n
 
-        del q, k
+        # del q, k
 
         attention_score = attention_score.softmax(dim=-1)
 
         # out = einsum('b i j, b j d -> b i d', attention_score, v)
-        out = torch.matmul(attention_score, v) # (b h) n d
-        out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
+        out = torch.matmul(attention_score, v) # b h n d
+        # out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
+        out = out.transpose(1, 2).reshape(b, n, -1) # b n c
         out = self.to_out(out)
         return self.drop_out(out)
 
