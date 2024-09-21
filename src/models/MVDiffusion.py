@@ -173,7 +173,8 @@ class MultiViewDiffuison(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         images_pred = self.inference(batch)
         images = ((batch['images'] / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (bs, m, 4, 512, 512)
-        images = images[:, :, :3, :, :] # (bs, m, 3, 512, 512)
+        images = images[:, :, :3, :, :].transpose(0, 1, 3, 4, 2) # (bs, m, 512, 512, 3)
+        
       
         # compute image & save
         if self.trainer.global_rank == 0:
@@ -202,12 +203,13 @@ class MultiViewDiffuison(pl.LightningModule):
         
         prompt_embds = torch.stack(prompt_embds, dim=0) # (bs, m, l, embed_dim)
 
+        # TODO: if needs classify free guide here?
         # prompt_null = self.encode_text('', device)[0]
-        null_image = torch.zeros(3, h, w, device=device)
-        prompt_null = self.image_processor(images=null_image, return_tensors='pt').pixel_values.to(device) # (1, 3, 224, 224)
-        prompt_null = self.vision_model(prompt_null).last_hidden_state # (1, l, c_vis)
-        prompt_null = self.visual_projection(prompt_null) # (1, l, embed_dim)
-        prompt_embd = torch.cat([prompt_null[:, None].repeat(bs, m, 1, 1), prompt_embds]) # (bs*2, m, l, embed_dim)
+        # null_image = torch.zeros(3, h, w, device=device)
+        # prompt_null = self.image_processor(images=null_image, return_tensors='pt').pixel_values.to(device) # (1, 3, 224, 224)
+        # prompt_null = self.vision_model(prompt_null).last_hidden_state # (1, l, c_vis)
+        # prompt_null = self.visual_projection(prompt_null) # (1, l, embed_dim)
+        # prompt_embd = torch.cat([prompt_null[:, None].repeat(bs, m, 1, 1), prompt_embds]) # (bs*2, m, l, embed_dim)
         
         self.scheduler.set_timesteps(self.diff_timestep, device=device)
         timesteps = self.scheduler.timesteps
@@ -215,15 +217,16 @@ class MultiViewDiffuison(pl.LightningModule):
         mask_cond = torch.ones(bs, cond_num, 1, 64, 64, device=device)
         mask_gen = torch.zeros(bs, m - cond_num, 1, 64, 64, device=device)
         mask = torch.cat([mask_cond, mask_gen], dim=1) # (bs, m, 1, 64, 64)
-        latents = torch.cat([latents, encoder_latents, mask], dim=2) # (bs, m, 9, 64, 64)
+        input_latents = torch.cat([latents, encoder_latents, mask], dim=2) # (bs, m, 9, 64, 64)
         for i, t in enumerate(timesteps):
             _timestep = torch.cat([t[None, None]] * m, dim=1)
 
-            noise_pred = \
-                self.forward_cls_free(latents, _timestep, prompt_embd, idxs, self.unet)
+            # noise_pred = \
+            #     self.forward_cls_free(input_latents, _timestep, prompt_embd, idxs, self.unet)
+            noise_pred = self.unet(input_latents, _timestep, prompt_embds, idxs)
 
             latents = self.scheduler.step(noise_pred, t, latents).prev_sample # (bs, m, 4, 64, 64)
-            latents = torch.cat([latents, encoder_latents, mask], dim=2) # (bs, m, 9, 64, 64)
+            input_latents = torch.cat([latents, encoder_latents, mask], dim=2) # (bs, m, 9, 64, 64)
         
         images_pred = self.decode_latent(latents, self.mvae)
        
@@ -235,6 +238,7 @@ class MultiViewDiffuison(pl.LightningModule):
 
         images = ((batch['images'] / 2 + 0.5) * 255).cpu().numpy().astype(np.uint8)
         images = images[:, :, :3, :, :] # (bs, m, 3, 512, 512)
+        images = images.transpose(0, 1, 3, 4, 2) # (bs, m, 512, 512, 3)
 
         image_id = batch['image_id'][0]
         
