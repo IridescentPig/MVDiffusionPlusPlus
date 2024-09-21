@@ -133,7 +133,7 @@ class MultiViewDiffuison(pl.LightningModule):
         mask_gen = torch.zeros(bs, m - cond_num, 1, 64, 64, device=device)
         mask = torch.cat([mask_cond, mask_gen], dim=1) # (bs, m, 1, 64, 64)
 
-        latents_concat = self.white_img[None, None].repeat(bs, m - cond_num, 1, 1, 1) # (bs, m - cond_num, 4, 512, 512)
+        latents_concat = self.white_img[None, None].repeat(bs, m - cond_num, 1, 1, 1).to(device) # (bs, m - cond_num, 4, 512, 512)
         latents_concat = torch.cat([batch['images'][:, cond_num:], latents_concat], dim=1) # (bs, m, 4, 512, 512)
         latents_concat = self.encode_image(latents_concat, self.mvae) # (bs, m, 4, 64, 64)
         noise_z = torch.cat([noise_z, latents_concat, mask], dim=2) # (bs, m, 9, 64, 64)

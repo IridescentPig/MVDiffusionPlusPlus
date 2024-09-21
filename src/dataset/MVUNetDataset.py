@@ -45,7 +45,7 @@ class MultiViewUNetDataset(torch.utils.data.Dataset):
         self.to_tensor = ToTensor()
         self.train_stage = config.get('train_stage', 0) # 0, 1, 2
         self.white_img = \
-            torch.cat([torch.ones(3, 512, 512), torch.zeros(1, 512, 512)], dim=0) * 255. # (4, 512, 512)
+            torch.cat([torch.ones(3, 512, 512), torch.zeros(1, 512, 512)], dim=0) # (4, 512, 512)
 
     def __len__(self):
         return len(self.image_dirs)
@@ -177,7 +177,8 @@ def collate_fn(batch):
             batch_size, gen_num, min_val=10, max_val=42
         ).long() # (B, gen_num)
         cond_images = raw_images[torch.arange(batch_size).unsqueeze(1), cond_idxs] # (B, 1, 4, H, W)
-        gen_images = GEN_IMAGE.unsqueeze(0).unsqueeze(0).expand(batch_size, gen_num, -1, -1, -1) # (B, gen_num, 4, H, W)
+        # gen_images = GEN_IMAGE.unsqueeze(0).unsqueeze(0).expand(batch_size, gen_num, -1, -1, -1) # (B, gen_num, 4, H, W)
+        gen_images = raw_images[torch.arange(batch_size).unsqueeze(1), gen_idxs] # (B, gen_num, 4, H, W)
         images = torch.cat([cond_images, gen_images], dim=1) # (B, 1 + gen_num, 4, H, W)
         cond_idxs = torch.randint(0, 10, (batch_size, 1)).long() # (B, 1)
         idxs = torch.cat([cond_idxs, gen_idxs], dim=1) # (B, 1 + gen_num)
