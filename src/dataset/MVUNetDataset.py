@@ -4,6 +4,8 @@ from PIL import Image
 import os
 
 WHITE_IMAGE = torch.ones(3, 512, 512)
+ZERO_MASK = torch.zeros(1, 512, 512)
+GEN_IMAGE = torch.cat([WHITE_IMAGE, ZERO_MASK], dim=0) # (4, 512, 512)
 
 class MultiViewUNetDataset(torch.utils.data.Dataset):
     """
@@ -170,7 +172,7 @@ def collate_fn(batch):
         cond_idxs = torch.zeros((batch_size, cond_num)).long() # (B, 1)
         gen_idxs = torch.randint(10, 42, (batch_size, gen_num)).long() # (B, 8)
         cond_images = raw_images[torch.arange(batch_size).unsqueeze(1), cond_idxs] # (B, 1, 4, H, W)
-        gen_images = WHITE_IMAGE.unsqueeze(0).unsqueeze(0).expand(batch_size, gen_num, -1, -1, -1) # (B, 8, 4, H, W)
+        gen_images = GEN_IMAGE.unsqueeze(0).unsqueeze(0).expand(batch_size, gen_num, -1, -1, -1) # (B, 8, 4, H, W)
         images = torch.cat([cond_images, gen_images], dim=1) # (B, 9, 4, H, W)
         cond_idxs = torch.randint(0, 10, (batch_size, 1)).long() # (B, 1)
         idxs = torch.cat([cond_idxs, gen_idxs], dim=1) # (B, 9)
