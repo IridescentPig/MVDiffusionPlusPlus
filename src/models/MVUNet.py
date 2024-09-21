@@ -67,13 +67,15 @@ class SelfAttention(nn.Module):
         q, k, v = map(lambda t: rearrange(
             t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
 
-        sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
+        # sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
+        attention_score = torch.matmul(q, k.transpose(-1, -2)) * self.scale # (b h) n n
 
         del q, k
 
-        sim = sim.softmax(dim=-1)
+        attention_score = attention_score.softmax(dim=-1)
 
-        out = einsum('b i j, b j d -> b i d', sim, v)
+        # out = einsum('b i j, b j d -> b i d', attention_score, v)
+        out = torch.matmul(attention_score, v) # (b h) n d
         out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
         out = self.to_out(out)
         return self.drop_out(out)
