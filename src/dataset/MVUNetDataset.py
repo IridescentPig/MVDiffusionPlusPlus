@@ -3,6 +3,7 @@ from torchvision.transforms import ToTensor
 from PIL import Image
 import os
 
+WHITE_IMAGE = torch.ones(3, 512, 512)
 
 class MultiViewUNetDataset(torch.utils.data.Dataset):
     """
@@ -154,16 +155,25 @@ def collate_fn(batch):
                 ).long()
                 idxs = torch.cat([cond_idxs, gen_idxs], dim=1) # (B, cond_num + 8)
     else:
-        cond_num = torch.randint(1, 11, (1,)).item()
-        gen_num = 32
-        cond_idxs = generate_batched_sorted_unique_random(
-            batch_size, cond_num, min_val=0, max_val=10
-        ).long() # (B, cond_num)
-        cond_images = raw_images[torch.arange(batch_size).unsqueeze(1), cond_idxs] # (B, cond_num, 4, H, W)
-        gen_idxs = torch.arange(10, 42).unsqueeze(0).expand(batch_size, -1).long() # (B, 32)
-        gen_images = raw_images[torch.arange(batch_size).unsqueeze(1), gen_idxs] # (B, 32, 4, H, W)
-        images = torch.cat([cond_images, gen_images], dim=1) # (B, cond_num + 32, 4, H, W)
-        idxs = torch.cat([cond_idxs, gen_idxs], dim=1) # (B, cond_num + 32)
+        # cond_num = torch.randint(1, 11, (1,)).item()
+        # gen_num = 32
+        # cond_idxs = generate_batched_sorted_unique_random(
+        #     batch_size, cond_num, min_val=0, max_val=10
+        # ).long() # (B, cond_num)
+        # cond_images = raw_images[torch.arange(batch_size).unsqueeze(1), cond_idxs] # (B, cond_num, 4, H, W)
+        # gen_idxs = torch.arange(10, 42).unsqueeze(0).expand(batch_size, -1).long() # (B, 32)
+        # gen_images = raw_images[torch.arange(batch_size).unsqueeze(1), gen_idxs] # (B, 32, 4, H, W)
+        # images = torch.cat([cond_images, gen_images], dim=1) # (B, cond_num + 32, 4, H, W)
+        # idxs = torch.cat([cond_idxs, gen_idxs], dim=1) # (B, cond_num + 32)
+        cond_num = 1
+        gen_num = 8
+        cond_idxs = torch.zeros((batch_size, cond_num)).long() # (B, 1)
+        gen_idxs = torch.randint(10, 42, (batch_size, gen_num)).long() # (B, 8)
+        cond_images = raw_images[torch.arange(batch_size).unsqueeze(1), cond_idxs] # (B, 1, 4, H, W)
+        gen_images = WHITE_IMAGE.unsqueeze(0).unsqueeze(0).expand(batch_size, gen_num, -1, -1, -1) # (B, 8, 4, H, W)
+        images = torch.cat([cond_images, gen_images], dim=1) # (B, 9, 4, H, W)
+        cond_idxs = torch.randint(0, 10, (batch_size, 1)).long() # (B, 1)
+        idxs = torch.cat([cond_idxs, gen_idxs], dim=1) # (B, 9)
     
     return {
         'images': images,
