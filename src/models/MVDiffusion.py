@@ -146,7 +146,7 @@ class MultiViewDiffuison(pl.LightningModule):
 
         # eps mode
         loss = torch.nn.functional.mse_loss(denoise, target)
-        self.log('train_loss', loss)
+        self.log('train_loss', loss, prog_bar=True)
         return loss
     
     def gen_cls_free_guide_pair(self, latents, timestep, prompt_embd, idxs):

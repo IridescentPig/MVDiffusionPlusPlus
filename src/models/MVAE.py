@@ -87,7 +87,7 @@ class MaskVAE(pl.LightningModule):
         inputs = batch['images'] # (B, 4, H, W)
         reconstructions, posterior = self(inputs)
         loss = self.loss(inputs, posterior, reconstructions)
-        self.log('train_loss', loss)
+        self.log('train_loss', loss, prog_bar=True)
         # self.log('train_recon_loss', recon_loss)
         # self.log('train_kl_loss', kl_loss)
         # self.log('train_mask_loss', mask_loss)
