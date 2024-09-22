@@ -78,7 +78,7 @@ class SelfAttention(nn.Module):
             enable_math=False, 
             enable_mem_efficient=False
         ):
-            out = F.scaled_dot_product_attention(q, k, v, dropout=self.drop_out.p, scale=self.scale) # b h n d
+            out = F.scaled_dot_product_attention(q, k, v, dropout_p=self.drop_out.p) # b h n d
         
         # out = rearrange(out, 'b h n d -> b n (h d)') # b n c
         out = out.transpose(1, 2).reshape(b, n, -1) # b n c
@@ -142,7 +142,7 @@ class MultiViewUNet(nn.Module):
               list(self.global_self_attn_upblocks.parameters()) + \
               [self.Vs] + [self.s], 1.0)]
 
-        self.trainable_parameters += [(list(self.unet.parameters()), 0.01)]
+        self.trainable_parameters += [(list(self.unet.parameters()), 1.0)]
 
     
     def forward(self, latents, timestep, prompt_embd, idxs):

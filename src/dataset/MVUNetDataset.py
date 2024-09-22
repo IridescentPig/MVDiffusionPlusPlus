@@ -37,7 +37,7 @@ class MultiViewUNetDataset(torch.utils.data.Dataset):
         self.split = split
         self.base_data_path = os.path.join(path, split)
         self.image_dirs = []
-        self.gen_num = config.get('gen_num', 4)
+        self.gen_num = config.get('gen_num', 8)
         for file in os.listdir(self.base_data_path):
             if os.path.isdir(os.path.join(self.base_data_path, file)):
                 self.image_dirs.append(os.path.join(self.base_data_path, file))
