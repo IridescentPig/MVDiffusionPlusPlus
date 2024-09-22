@@ -33,7 +33,7 @@ if __name__ == "__main__":
     main_config_path = args.main_cfg_path
     torch.set_float32_matmul_precision('medium')
     config = yaml.load(open(main_config_path, 'rb'), Loader=yaml.SafeLoader)
-    config['train']['max_epochs'] = args.max_epochs
+    config['train']['max_epochs'] = config['Trainer']['max_epochs']
     config['train']['batch_size'] = args.batch_size
     num_workers = args.num_workers
 
