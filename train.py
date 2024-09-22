@@ -25,12 +25,11 @@ def parse_args():
         '--ckpt_path', type=str, default=None,
         help='pretrained checkpoint path, helpful for using a pre-trained coarse-only LoFTR')
 
-    parser = pl.Trainer.add_argparse_args(parser)
+    # parser = pl.Trainer.add_argparse_args(parser)
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = parse_args()
-    # cli = get_cli()
     main_config_path = args.main_cfg_path
     torch.set_float32_matmul_precision('medium')
     config = yaml.load(open(main_config_path, 'rb'), Loader=yaml.SafeLoader)
@@ -82,10 +81,15 @@ if __name__ == '__main__':
         default_hp_metric=False
     )
 
-    trainer = pl.Trainer.from_argparse_args(
-        args,
+    # trainer = pl.Trainer.from_argparse_args(
+    #     args,
+    #     callbacks=[checkpoint_callback],
+    #     logger=logger
+    # )
+    trainer = pl.Trainer(
+        logger=logger,
         callbacks=[checkpoint_callback],
-        logger=logger
+        **config['Trainer']
     )
 
     trainer.fit(model, train_loader, val_loader)

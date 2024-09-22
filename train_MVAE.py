@@ -7,23 +7,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import yaml
 from src.models.MVAE import MaskVAE, MVAE_CONFIG
 from torch.utils.data import DataLoader
-# from pytorch_lightning.cli import LightningCLI
 
-# class MyLightningCLI(LightningCLI):
-#     def add_arguments_to_parser(self, parser):
-#         parser.add_argument(
-#         'main_cfg_path', type=str, help='main config path')
-#         parser.add_argument(
-#             '--exp_name', type=str, default='mvae')
-#         parser.add_argument(
-#             '--batch_size', type=int, default=4, help='batch_size per gpu')
-#         parser.add_argument(
-#             '--num_workers', type=int, default=1)
-#         parser.add_argument(
-#             '--ckpt_path', type=str, default=None,
-#             help='pretrained checkpoint path, helpful for using a pre-trained coarse-only LoFTR')
-
-# for older versions of pytorch-lightning
 def parse_args():
     # init a costum parser which will be added into pl.Trainer parser
     # check documentation: https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html#trainer-flags
@@ -41,12 +25,7 @@ def parse_args():
         '--ckpt_path', type=str, default=None,
         help='pretrained checkpoint path, helpful for using a pre-trained coarse-only LoFTR')
 
-    parser = pl.Trainer.add_argparse_args(parser)
     return parser.parse_args()
-
-# def get_cli():
-#     cli = MyLightningCLI(run=False)
-#     return cli
 
 if __name__ == "__main__":
     args = parse_args()
@@ -108,10 +87,10 @@ if __name__ == "__main__":
         default_hp_metric=False
     )
 
-    trainer = pl.Trainer.from_argparse_args(
-        args,
+    trainer = pl.Trainer(
+        logger=logger,
         callbacks=[checkpoint_callback],
-        logger=logger
+        **config['Trainer']
     )
 
     trainer.fit(model, train_loader, val_loader)
