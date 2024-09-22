@@ -58,8 +58,11 @@ class MultiViewUNetDataset(torch.utils.data.Dataset):
                 image_paths.append(os.path.join(base_path, f'{i:03d}.png'))
         else:
             for i in range(10):
-                image_paths.append(os.path.join(base_path, f'{i:03d}.png'))
-            image_paths += [''] * 32
+                path = os.path.join(base_path, f'{i:03d}.png')
+                if os.path.exists(path):
+                    image_paths.append(os.path.join(base_path, f'{i:03d}.png'))
+                else:
+                    image_paths.append('')
 
         images = []
         for path in image_paths:
@@ -177,17 +180,29 @@ def collate_fn(batch):
             batch_size, gen_num, min_val=10, max_val=42
         ).long() # (B, gen_num)
         cond_images = raw_images[torch.arange(batch_size).unsqueeze(1), cond_idxs] # (B, 1, 4, H, W)
-        # gen_images = GEN_IMAGE.unsqueeze(0).unsqueeze(0).expand(batch_size, gen_num, -1, -1, -1) # (B, gen_num, 4, H, W)
-        gen_images = raw_images[torch.arange(batch_size).unsqueeze(1), gen_idxs] # (B, gen_num, 4, H, W)
+        gen_images = GEN_IMAGE.unsqueeze(0).unsqueeze(0).expand(batch_size, gen_num, -1, -1, -1) # (B, gen_num, 4, H, W)
+        gt_gen_images = raw_images[torch.arange(batch_size).unsqueeze(1), gen_idxs] # (B, gen_num, 4, H, W)
         images = torch.cat([cond_images, gen_images], dim=1) # (B, 1 + gen_num, 4, H, W)
+        gt_images = torch.cat([cond_images, gt_gen_images], dim=1) # (B, 1 + gen_num, 4, H, W)
         cond_idxs = torch.randint(0, 10, (batch_size, 1)).long() # (B, 1)
         idxs = torch.cat([cond_idxs, gen_idxs], dim=1) # (B, 1 + gen_num)
     
-    return {
-        'images': images,
-        'idxs': idxs,
-        'image_id': image_ids,
-        'train_stage': train_stages,
-        'split': splits,
-        'cond_num': [cond_num] * batch_size,
-    }
+    if split == 'train':
+        return {
+            'images': images,
+            'idxs': idxs,
+            'image_id': image_ids,
+            'train_stage': train_stages,
+            'split': splits,
+            'cond_num': [cond_num] * batch_size,
+        }
+    else:
+        return {
+            'images': images,
+            'idxs': idxs,
+            'image_id': image_ids,
+            'train_stage': train_stages,
+            'split': splits,
+            'cond_num': [cond_num] * batch_size,
+            'gt_images': gt_images,
+        }

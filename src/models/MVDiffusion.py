@@ -172,7 +172,7 @@ class MultiViewDiffuison(pl.LightningModule):
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
         images_pred = self.inference(batch)
-        images = ((batch['images'] / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (bs, m, 4, 512, 512)
+        images = ((batch['gt_images'] / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (bs, m, 4, 512, 512)
         images = images[:, :, :3, :, :].transpose(0, 1, 3, 4, 2) # (bs, m, 512, 512, 3)
         
       

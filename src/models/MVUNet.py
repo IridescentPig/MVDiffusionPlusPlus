@@ -1,5 +1,8 @@
 import torch
+import torch.backends
+import torch.backends.cuda
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import einsum
 from einops import rearrange
 from diffusers import UNet2DConditionModel
@@ -61,7 +64,6 @@ class SelfAttention(nn.Module):
         h = self.heads
 
         q = self.to_q(x)
-
         k = self.to_k(x)
         v = self.to_v(x)
 
@@ -71,16 +73,14 @@ class SelfAttention(nn.Module):
         k = k.reshape(b, n, h, -1).transpose(1, 2) # b h n d
         v = v.reshape(b, n, h, -1).transpose(1, 2) # b h n d
 
-        # sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
-        attention_score = torch.matmul(q, k.transpose(-1, -2)) * self.scale # b h n n
-
-        # del q, k
-
-        attention_score = attention_score.softmax(dim=-1)
-
-        # out = einsum('b i j, b j d -> b i d', attention_score, v)
-        out = torch.matmul(attention_score, v) # b h n d
-        # out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
+        with torch.backends.cuda.sdp_kernel(
+            enable_flash=True, 
+            enable_math=False, 
+            enable_mem_efficient=False
+        ):
+            out = F.scaled_dot_product_attention(q, k, v, dropout=self.drop_out.p, scale=self.scale) # b h n d
+        
+        # out = rearrange(out, 'b h n d -> b n (h d)') # b n c
         out = out.transpose(1, 2).reshape(b, n, -1) # b n c
         out = self.to_out(out)
         return self.drop_out(out)
