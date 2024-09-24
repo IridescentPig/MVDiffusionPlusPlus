@@ -72,6 +72,8 @@ class MaskVAE(pl.LightningModule):
         mask_loss = self.bce_loss(mask_reconstructions, mask_inputs)
         # mask_loss = torch.sum(mask_loss) / mask_loss.shape[0]
         loss = recon_loss + mask_loss
+        self.log('recon_loss', recon_loss, prog_bar=True)
+        self.log('mask_loss', mask_loss, prog_bar=True)
         return loss
 
     def configure_optimizers(self):
