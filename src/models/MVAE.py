@@ -97,29 +97,39 @@ class MaskVAE(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         images = batch['images']
         reconstructions, posterior = self(images)
+        mask = images[:, 3] # (B, 1, H, W)
+        mask = mask * 255. # [0, 1] -> [0, 255]
         images = images[:, :3] # (B, 3, H, W)
-        images = images.permute(0, 2, 3, 1) # (B, H, W, 3)
-        images = ((images / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (B, 3, H, W)
-        reconstructions = reconstructions[:, :3] # (B, 3, H, W)
-        reconstructions = reconstructions.permute(0, 2, 3, 1) # (B, H, W, 3)
-        reconstructions = (reconstructions / 2 + 0.5).clamp(0, 1)
-        reconstructions = reconstructions.cpu().float().numpy()
-        reconstructions = (reconstructions * 255).round().astype('uint8')
+        images = ((images / 2+ 0.5) * 255) # (B, 3, H, W), [0, 255]
+        images = torch.cat([images, mask], dim=1).permute(0, 2, 3, 1) # (B, H, W, 4)
+        images = images.cpu().numpy().astype(np.uint8) # (B, H, W, 4)
+
+        mask_rec = reconstructions[:, 3] # (B, 1, H, W)
+        rgb_rec = reconstructions[:, :3] # (B, 3, H, W)
+        mask_rec = mask_rec.clamp(0, 1) * 255. # [0, 1] -> [0, 255]
+        rgb_rec = (rgb_rec / 2 + 0.5).clamp(0, 1) * 255. # [0, 1] -> [0, 255]
+        images_rec = torch.cat([rgb_rec, mask_rec], dim=1).permute(0, 2, 3, 1) # (B, H, W, 4)
+        images_rec = images_rec.cpu().float().numpy().astype(np.uint8) # (B, H, W, 4)
         if self.trainer.global_rank == 0:
-            self.save_image(images, reconstructions, batch_idx)
+            self.save_image(images, images_rec, batch_idx)
 
     @torch.no_grad()
     def test_step(self, batch, batch_idx):
         images = batch['images']
         reconstructions, posterior = self(images)
+        mask = images[:, 3] # (B, 1, H, W)
+        mask = mask * 255. # [0, 1] -> [0, 255]
         images = images[:, :3] # (B, 3, H, W)
-        images = images.permute(0, 2, 3, 1) # (B, H, W, 3)
-        images = ((images / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8)
-        reconstructions = reconstructions[:, :3] # (B, 3, H, W)
-        reconstructions = reconstructions.permute(0, 2, 3, 1) # (B, H, W, 3)
-        reconstructions = (reconstructions / 2 + 0.5).clamp(0, 1)
-        reconstructions = reconstructions.cpu().float().numpy()
-        reconstructions = (reconstructions * 255).round().astype('uint8')
+        images = ((images / 2+ 0.5) * 255) # (B, 3, H, W), [0, 255]
+        images = torch.cat([images, mask], dim=1).permute(0, 2, 3, 1) # (B, H, W, 4)
+        images = images.cpu().numpy().astype(np.uint8) # (B, H, W, 4)
+
+        mask_rec = reconstructions[:, 3] # (B, 1, H, W)
+        rgb_rec = reconstructions[:, :3] # (B, 3, H, W)
+        mask_rec = mask_rec.clamp(0, 1) * 255. # [0, 1] -> [0, 255]
+        rgb_rec = (rgb_rec / 2 + 0.5).clamp(0, 1) * 255. # [0, 1] -> [0, 255]
+        images_rec = torch.cat([rgb_rec, mask_rec], dim=1).permute(0, 2, 3, 1) # (B, H, W, 4)
+        images_rec = images_rec.cpu().float().numpy().astype(np.uint8) # (B, H, W, 4)
         image_id = batch['image_id'][0]
         
         output_dir = batch['output_dir'][0] if 'output_dir' in batch else os.path.join(self.logger.log_dir, 'images')
@@ -127,7 +137,7 @@ class MaskVAE(pl.LightningModule):
         os.makedirs(output_dir, exist_ok=True)
         for i in range(images.shape[0]):
             img = Image.fromarray(images[i])
-            img_rec = Image.fromarray(reconstructions[i])
+            img_rec = Image.fromarray(images_rec[i])
             img.save(os.path.join(output_dir, f'{batch_idx}_{i}_gt.png'))
             img_rec.save(os.path.join(output_dir, f'{batch_idx}_{i}_rec.png'))
 
