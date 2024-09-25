@@ -93,8 +93,7 @@ class MultiViewUNet(nn.Module):
             self.unet = UNet2DConditionModel.from_config(UNET_CONFIG)
         else:
             self.unet = unet
-        self.Vs = torch.nn.Parameter(torch.zeros(42, 320))
-        self.s = torch.nn.Parameter(torch.zeros(1))
+        self.Vs = torch.nn.Parameter(torch.zeros(9, 320))
         # self.conv = nn.Conv2d(9, 4, 1)
         self.global_self_attn_downblocks = nn.ModuleList()
         if isinstance(self.unet.config['attention_head_dim'], list):
