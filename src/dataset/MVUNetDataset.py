@@ -54,11 +54,12 @@ class MultiViewUNetDataset(torch.utils.data.Dataset):
         base_path = self.image_dirs[idx]
         image_paths = []
         if self.split == 'train':
-            for i in range(42):
+            image_paths.append(os.path.join(base_path, '000.png'))
+            for i in range(10, 18):
                 image_paths.append(os.path.join(base_path, f'{i:03d}.png'))
         else:
-            for i in range(42):
-                path = os.path.join(base_path, f'{i:03d}.png')
+            image_paths.append(os.path.join(base_path, '000.png'))
+            for i in range(10, 18):
                 if os.path.exists(path):
                     image_paths.append(os.path.join(base_path, f'{i:03d}.png'))
                 else:
