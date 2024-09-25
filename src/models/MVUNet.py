@@ -94,6 +94,7 @@ class MultiViewUNet(nn.Module):
         else:
             self.unet = unet
         self.Vs = torch.nn.Parameter(torch.zeros(9, 320))
+        self.s = torch.nn.Parameter(torch.zeros(1))
         # self.conv = nn.Conv2d(9, 4, 1)
         self.global_self_attn_downblocks = nn.ModuleList()
         if isinstance(self.unet.config['attention_head_dim'], list):
