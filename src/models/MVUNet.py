@@ -53,6 +53,9 @@ class SelfAttention(nn.Module):
         self.to_q = nn.Linear(dim, inner_dim, bias=False)
         self.to_k = nn.Linear(dim, inner_dim, bias=False)
         self.to_v = nn.Linear(dim, inner_dim, bias=False)
+        torch.nn.init.xavier_uniform_(self.to_q.weight)
+        torch.nn.init.xavier_uniform_(self.to_k.weight)
+        torch.nn.init.xavier_uniform_(self.to_v.weight)
 
         self.to_out = nn.Linear(inner_dim, dim)
         self.to_out.weight.data.fill_(0)
@@ -94,6 +97,7 @@ class MultiViewUNet(nn.Module):
         else:
             self.unet = unet
         self.Vs = torch.nn.Parameter(torch.zeros(9, 320))
+        torch.nn.init.xavier_uniform_(self.Vs)
         self.s = torch.nn.Parameter(torch.zeros(1))
         # self.conv = nn.Conv2d(9, 4, 1)
         self.global_self_attn_downblocks = nn.ModuleList()
@@ -142,7 +146,7 @@ class MultiViewUNet(nn.Module):
               list(self.global_self_attn_upblocks.parameters()) + \
               [self.Vs] + [self.s], 1.0)]
 
-        self.trainable_parameters += [(list(self.unet.parameters()), 1.0)]
+        self.trainable_parameters += [(list(self.unet.parameters()), 0.5)]
 
     
     def forward(self, latents, timestep, prompt_embd, idxs):

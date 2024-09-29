@@ -5,7 +5,8 @@ import os
 
 WHITE_IMAGE = torch.ones(3, 512, 512)
 ZERO_MASK = torch.zeros(1, 512, 512)
-GEN_IMAGE = torch.cat([WHITE_IMAGE, ZERO_MASK], dim=0) # (4, 512, 512)
+ONE_MASK = torch.ones(1, 512, 512)
+GEN_IMAGE = torch.cat([WHITE_IMAGE, ONE_MASK], dim=0) # (4, 512, 512)
 
 class MultiViewUNetDataset(torch.utils.data.Dataset):
     """
@@ -45,7 +46,7 @@ class MultiViewUNetDataset(torch.utils.data.Dataset):
         self.to_tensor = ToTensor()
         self.train_stage = config.get('train_stage', 0) # 0, 1, 2
         self.white_img = \
-            torch.cat([torch.ones(3, 512, 512), torch.zeros(1, 512, 512)], dim=0) # (4, 512, 512)
+            torch.cat([torch.ones(3, 512, 512), torch.ones(1, 512, 512)], dim=0) # (4, 512, 512)
 
     def __len__(self):
         return len(self.image_dirs)
@@ -60,8 +61,9 @@ class MultiViewUNetDataset(torch.utils.data.Dataset):
         else:
             image_paths.append(os.path.join(base_path, '000.png'))
             for i in range(10, 18):
+                path = os.path.join(base_path, f'{i:03d}.png')
                 if os.path.exists(path):
-                    image_paths.append(os.path.join(base_path, f'{i:03d}.png'))
+                    image_paths.append(path)
                 else:
                     image_paths.append('')
 

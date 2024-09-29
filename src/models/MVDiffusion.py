@@ -1,8 +1,8 @@
 import pytorch_lightning as pl
-from transformers import CLIPTextModel, CLIPTokenizer, CLIPImageProcessor
+from transformers import CLIPTextModel, CLIPTokenizer, CLIPImageProcessor, CLIPVisionModelWithProjection
 from .MVUNet import MultiViewUNet
 import torch
-from diffusers import AutoencoderKL, DDIMScheduler, UNet2DConditionModel
+from diffusers import AutoencoderKL, DDIMScheduler, UNet2DConditionModel, DDPMScheduler
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import numpy as np
@@ -32,7 +32,7 @@ class MultiViewDiffuison(pl.LightningModule):
         self.m_pos = torch.ones(1, 64, 64)
         self.m_neg = torch.zeros(1, 64, 64)
         self.white_img = \
-            torch.cat([torch.ones(3, 512, 512), torch.zeros(1, 512, 512)], dim=0) # (4, 512, 512)
+            torch.cat([torch.ones(3, 512, 512), torch.ones(1, 512, 512)], dim=0) # (4, 512, 512)
         # epsilon-prediction or velocity-prediction
         scheduler_config = self.scheduler.config
         if config['model'].get('prediction_type', None) is None:
@@ -41,18 +41,26 @@ class MultiViewDiffuison(pl.LightningModule):
             self.prediction_type = config['model']['prediction_type']
         
         scheduler_config['prediction_type'] = self.prediction_type
-        self.scheduler = DDIMScheduler.from_config(scheduler_config)
+        self.scheduler = DDPMScheduler.from_config(scheduler_config)
 
 
     def load_model(self, model_id):
         mvae = AutoencoderKL.from_pretrained(model_id, subfolder="vae")
         mvae.eval()
-        scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
+        scheduler = DDPMScheduler.from_pretrained(model_id, subfolder="scheduler")
         unet = UNet2DConditionModel.from_pretrained(model_id, subfolder="unet")
-        image_processor = CLIPImageProcessor.from_pretrained(model_id, subfolder="feature_extractor")
-        safety_checker = StableDiffusionSafetyChecker.from_pretrained(model_id, subfolder="safety_checker")
-        vision_model = safety_checker.vision_model
-        visual_projection = safety_checker.visual_projection
+        # image_processor = CLIPImageProcessor.from_pretrained(model_id, subfolder="feature_extractor")
+        # safety_checker = StableDiffusionSafetyChecker.from_pretrained(model_id, subfolder="safety_checker")
+        # vision_model = safety_checker.vision_model
+        # visual_projection = safety_checker.visual_projection
+        image_processor = CLIPImageProcessor.from_pretrained(
+            '/public/home/zhaoyq/chenxl/Workspace/HuggingFace/openai/clip-vit-large-patch14'
+        )
+        image_encoder = CLIPVisionModelWithProjection.from_pretrained(
+            '/public/home/zhaoyq/chenxl/Workspace/HuggingFace/openai/clip-vit-large-patch14'
+        )
+        vision_model = image_encoder.vision_model
+        visual_projection = image_encoder.visual_projection
         vision_model.eval()
         visual_projection.eval()
         mvae.requires_grad_(False)
@@ -123,7 +131,7 @@ class MultiViewDiffuison(pl.LightningModule):
             prompt_embds.append(img_embeddings.repeat(m, 1, 1)) # (m, l, embed_dim)
 
         latents = self.encode_image(batch['images'], self.mvae)
-        t = torch.randint(0, self.scheduler.num_train_timesteps,
+        t = torch.randint(0, self.scheduler.config.num_train_timesteps,
                         (latents.shape[0],), device=latents.device).long()
         prompt_embds = torch.stack(prompt_embds, dim=0) # (bs, m, l, embed_dim)
 
