@@ -32,7 +32,7 @@ class MultiViewDiffuison(pl.LightningModule):
         #     config['model']['model_id'], subfolder="text_encoder", torch_dtype=torch.float16)
 
         self.mvae, self.scheduler, unet, self.vision_model, self.visual_projection, self.image_processor = \
-            self.load_model(config['model']['model_id'])
+            self.load_model(config)
         self.unet = MultiViewUNet(unet)
         self.trainable_params = self.unet.trainable_parameters
 
@@ -52,21 +52,15 @@ class MultiViewDiffuison(pl.LightningModule):
         self.scheduler = DDPMScheduler.from_config(scheduler_config)
 
 
-    def load_model(self, model_id):
+    def load_model(self, config):
+        model_id = config['model']['model_id']
+        clip_model_id = config['model']['clip_model_id']
         mvae = AutoencoderKL.from_pretrained(model_id, subfolder="vae")
         mvae.eval()
         scheduler = DDPMScheduler.from_pretrained(model_id, subfolder="scheduler")
         unet = UNet2DConditionModel.from_pretrained(model_id, subfolder="unet")
-        # image_processor = CLIPImageProcessor.from_pretrained(model_id, subfolder="feature_extractor")
-        # safety_checker = StableDiffusionSafetyChecker.from_pretrained(model_id, subfolder="safety_checker")
-        # vision_model = safety_checker.vision_model
-        # visual_projection = safety_checker.visual_projection
-        image_processor = CLIPImageProcessor.from_pretrained(
-            '/public/home/zhaoyq/chenxl/Workspace/HuggingFace/openai/clip-vit-large-patch14'
-        )
-        image_encoder = CLIPVisionModelWithProjection.from_pretrained(
-            '/public/home/zhaoyq/chenxl/Workspace/HuggingFace/openai/clip-vit-large-patch14'
-        )
+        image_processor = CLIPImageProcessor.from_pretrained(clip_model_id)
+        image_encoder = CLIPVisionModelWithProjection.from_pretrained(clip_model_id)
         vision_model = image_encoder.vision_model
         visual_projection = image_encoder.visual_projection
         vision_model.eval()
@@ -80,7 +74,6 @@ class MultiViewDiffuison(pl.LightningModule):
     def encode_image(self, x_input, mvae: AutoencoderKL):
         b, m, c, h, w = x_input.shape
 
-        # x_input = x_input.permute(0, 1, 4, 2, 3)  # (bs, m, 4, 512, 512)
         x_input = x_input.reshape(-1, c, h, w) # (bs*m, 4, 512, 512)
         z = mvae.encode(x_input).latent_dist  # (bs*m, 4, 64, 64)
 

@@ -38,7 +38,7 @@ class MultiViewUNetDataset(torch.utils.data.Dataset):
         self.split = split
         self.base_data_path = os.path.join(path, split)
         self.image_dirs = []
-        self.gen_num = config.get('gen_num', 8)
+        self.gen_num = config.get('gen_num', 32)
         for file in os.listdir(self.base_data_path):
             if os.path.isdir(os.path.join(self.base_data_path, file)):
                 self.image_dirs.append(os.path.join(self.base_data_path, file))
@@ -55,12 +55,10 @@ class MultiViewUNetDataset(torch.utils.data.Dataset):
         base_path = self.image_dirs[idx]
         image_paths = []
         if self.split == 'train':
-            image_paths.append(os.path.join(base_path, '000.png'))
-            for i in range(10, 18):
+            for i in range(0, 42):
                 image_paths.append(os.path.join(base_path, f'{i:03d}.png'))
         else:
-            image_paths.append(os.path.join(base_path, '000.png'))
-            for i in range(10, 18):
+            for i in range(0, 42):
                 path = os.path.join(base_path, f'{i:03d}.png')
                 if os.path.exists(path):
                     image_paths.append(path)
@@ -127,10 +125,9 @@ def collate_fn(batch):
     if split == 'train':
         if train_stage == 0 or train_stage == 1:
             cond_num = 1
-            # gen_num = 8
             cond_idxs = torch.zeros((batch_size, cond_num)).long() # (B, 1)
             gen_idxs = generate_batched_sorted_unique_random(
-                batch_size, gen_num, min_val=1, max_val=9
+                batch_size, gen_num, min_val=10, max_val=42
             ).long() # (B, gen_num)
             cond_images = raw_images[torch.arange(batch_size).unsqueeze(1), cond_idxs] # (B, 1, 4, H, W)
             gen_images = raw_images[torch.arange(batch_size).unsqueeze(1), gen_idxs] # (B, gen_num, 4, H, W)
@@ -170,7 +167,7 @@ def collate_fn(batch):
         cond_num = 1
         cond_idxs = torch.zeros((batch_size, cond_num)).long() # (B, 1)
         gen_idxs = generate_batched_sorted_unique_random(
-            batch_size, gen_num, min_val=1, max_val=9
+            batch_size, gen_num, min_val=10, max_val=42
         ).long() # (B, gen_num)
         cond_images = raw_images[torch.arange(batch_size).unsqueeze(1), cond_idxs] # (B, 1, 4, H, W)
         gen_images = GEN_IMAGE.unsqueeze(0).unsqueeze(0).expand(batch_size, gen_num, -1, -1, -1) # (B, gen_num, 4, H, W)
