@@ -67,7 +67,7 @@ if __name__ == '__main__':
     
     checkpoint_callback = \
         ModelCheckpoint(
-            save_top_k=2, 
+            save_top_k=1, 
             monitor="train_loss",
             mode="min", 
             save_last=1,

@@ -9,6 +9,14 @@ import numpy as np
 import os
 from PIL import Image
 
+def get_warmup_cosine_schedule(optimizer, warmup_steps, t_total, min_lr):
+    def lr_lambda(current_step):
+        if current_step < warmup_steps:
+            return float(current_step) / float(max(1., warmup_steps))
+        return \
+            max(min_lr, 0.5 * (1 + np.cos(np.pi * (current_step - warmup_steps) / float(max(1, t_total - warmup_steps)))))
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
 class MultiViewDiffuison(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
@@ -94,9 +102,12 @@ class MultiViewDiffuison(pl.LightningModule):
             image = mvae.decode(latents[:, j]).sample
             images.append(image)
         image = torch.stack(images, dim=1) # (bs, m, 4, 512, 512)
-        image = image[:, :, :3, :, :] # (bs, m, 3, 512, 512)
-        image = (image / 2 + 0.5).clamp(0, 1) # (bs, m, 3, 512, 512)
-        image = image.cpu().permute(0, 1, 3, 4, 2).float().numpy() # (bs, m, 512, 512, 3)
+        rgb = image[:, :, :3, :, :] # (bs, m, 3, 512, 512)
+        mask = image[:, :, 3:, :, :] # (bs, m, 1, 512, 512)
+        rgb = (rgb / 2 + 0.5).clamp(0, 1) # (bs, m, 3, 512, 512)
+        mask = mask.clamp(0, 1) # (bs, m, 1, 512, 512)
+        image = torch.cat([rgb, mask], dim=2) # (bs, m, 4, 512, 512)
+        image = image.cpu().permute(0, 1, 3, 4, 2).float().numpy() # (bs, m, 512, 512, 4)
         image = (image * 255).round().astype('uint8')
 
         return image
@@ -107,7 +118,11 @@ class MultiViewDiffuison(pl.LightningModule):
             param_groups.append({"params": params, "lr": self.lr * lr_scale})
         optimizer = torch.optim.AdamW(param_groups)
         scheduler = {
-            'scheduler': CosineAnnealingLR(optimizer, T_max=self.max_epochs, eta_min=1e-7),
+            # 'scheduler': CosineAnnealingLR(optimizer, T_max=self.max_epochs, eta_min=1e-7),
+            'scheduler': get_warmup_cosine_schedule(optimizer, 
+                                                    warmup_steps=self.max_epochs * 0.1, 
+                                                    t_total=self.max_epochs, 
+                                                    min_lr=1e-2),
             'interval': 'epoch',  # update the learning rate after each epoch
             'name': 'cosine_annealing_lr',
         }
@@ -180,8 +195,15 @@ class MultiViewDiffuison(pl.LightningModule):
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
         images_pred = self.inference(batch)
-        images = ((batch['gt_images'] / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (bs, m, 4, 512, 512)
-        images = images[:, :, :3, :, :].transpose(0, 1, 3, 4, 2) # (bs, m, 512, 512, 3)
+        rgb = batch['gt_images'][:, :, :3, :, :] # (bs, m, 3, 512, 512)
+        mask = batch['gt_images'][:, :, 3:, :, :] # (bs, m, 1, 512, 512)
+        rgb = (rgb / 2 + 0.5).clamp(0, 1) # (bs, m, 3, 512, 512)
+        mask = mask.clamp(0, 1) # (bs, m, 1, 512, 512)
+        images = torch.cat([rgb, mask], dim=2) # (bs, m, 4, 512, 512)
+        images = images.cpu().permute(0, 1, 3, 4, 2).float().numpy() # (bs, m, 512, 512, 4)
+        images = (images * 255.).round().astype('uint8')
+        # images = ((batch['gt_images'] / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (bs, m, 4, 512, 512)
+        # images = images[:, :, :3, :, :].transpose(0, 1, 3, 4, 2) # (bs, m, 512, 512, 3)
         
       
         # compute image & save

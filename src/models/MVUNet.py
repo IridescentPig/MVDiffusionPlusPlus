@@ -96,17 +96,19 @@ class MultiViewUNet(nn.Module):
             self.unet = UNet2DConditionModel.from_config(UNET_CONFIG)
         else:
             self.unet = unet
-        self.Vs = torch.nn.Parameter(torch.zeros(9, 320))
-        torch.nn.init.xavier_uniform_(self.Vs)
+        # self.Vs = torch.nn.Parameter(torch.zeros(9, 1280))
+        # self.Vs = torch.nn.Parameter(torch.zeros(9, 320))
+        self.Vs = torch.nn.Embedding(9, 50)
+        self.index_proj = torch.nn.Linear(50, 320)
+        # torch.nn.init.xavier_uniform_(self.Vs)
         self.s = torch.nn.Parameter(torch.zeros(1))
-        # self.conv = nn.Conv2d(9, 4, 1)
         self.global_self_attn_downblocks = nn.ModuleList()
         if isinstance(self.unet.config['attention_head_dim'], list):
             num_attention_heads = self.unet.config['attention_head_dim']
         else:
             num_attention_heads = [self.unet.config['attention_head_dim']] * len(self.unet.down_blocks)
         for i in range(len(self.unet.down_blocks)):
-            dim = self.unet.down_blocks[i].resnets[-1].out_channels
+            dim = self.unet.down_blocks[i].resnets[0].in_channels
             # TODO: read from config
             num_heads = num_attention_heads[i]
             attention_head_dim = dim // num_heads
@@ -127,8 +129,12 @@ class MultiViewUNet(nn.Module):
         
         self.global_self_attn_upblocks = nn.ModuleList()
         num_attention_heads = num_attention_heads[::-1]
+        reversed_output_channels = self.unet.config['block_out_channels'][::-1]
+        output_channels = reversed_output_channels[0]
         for i in range(len(self.unet.up_blocks)):
-            dim = self.unet.up_blocks[i].resnets[-1].out_channels
+            previous_output_channels = output_channels
+            output_channels = reversed_output_channels[i]
+            dim = previous_output_channels
             # num_heads = dim // 64
             num_heads = num_attention_heads[i]
             attention_head_dim = dim // num_heads
@@ -144,9 +150,12 @@ class MultiViewUNet(nn.Module):
             [(list(self.global_self_attn_downblocks.parameters()) + \
               list(self.global_self_attn_midblock.parameters()) + \
               list(self.global_self_attn_upblocks.parameters()) + \
-              [self.Vs] + [self.s], 1.0)]
+              list(self.index_proj.parameters()) + \
+            #   [self.Vs] + \
+              list(self.Vs.parameters()) + \
+              [self.s], 1.0)]
 
-        self.trainable_parameters += [(list(self.unet.parameters()), 0.5)]
+        self.trainable_parameters += [(list(self.unet.parameters()), 1.0)]
 
     
     def forward(self, latents, timestep, prompt_embd, idxs):
@@ -162,7 +171,9 @@ class MultiViewUNet(nn.Module):
         t_emb = self.unet.time_proj(timestep)  # (bs*m, 320)
         emb = self.unet.time_embedding(t_emb)  # (bs*m, 1280)
         idxs = idxs.reshape(-1) # (bs*m)
-        img_pos_emb = self.Vs[idxs] # (bs*m, 320)
+        # img_pos_emb = self.Vs[idxs] # (bs*m, 320)
+        img_pos_emb = self.Vs(idxs) # (bs*m, 50)
+        img_pos_emb = self.index_proj(img_pos_emb) # (bs*m, 320)
         img_pos_emb = self.unet.time_embedding(img_pos_emb) # (bs*m, 1280)
         emb = emb + self.s * img_pos_emb
 
@@ -174,6 +185,11 @@ class MultiViewUNet(nn.Module):
         # a. downsample
         down_block_res_samples = (hidden_states,)
         for i, downsample_block in enumerate(self.unet.down_blocks):
+            if m > 1:
+                _, _, h, w = hidden_states.shape
+                hidden_states = rearrange(hidden_states, '(b m) c h w -> b (m h w) c', m=m)
+                hidden_states = self.global_self_attn_downblocks[i](hidden_states)
+                hidden_states = rearrange(hidden_states, 'b (m h w) c -> (b m) c h w', m=m, h=h, w=w)
             if hasattr(downsample_block, 'has_cross_attention') and downsample_block.has_cross_attention:
                 for resnet, attn in zip(downsample_block.resnets, downsample_block.attentions):
                     hidden_states = resnet(hidden_states, emb)
@@ -187,12 +203,7 @@ class MultiViewUNet(nn.Module):
                 for resnet in downsample_block.resnets:
                     hidden_states = resnet(hidden_states, emb)
                     down_block_res_samples += (hidden_states,)
-            if m > 1:
-                _, _, h, w = hidden_states.shape
-                hidden_states = rearrange(hidden_states, '(b m) c h w -> b (m h w) c', m=m)
-                hidden_states = self.global_self_attn_downblocks[i](hidden_states)
-                hidden_states = rearrange(hidden_states, 'b (m h w) c -> (b m) c h w', m=m, h=h, w=w)
-
+        
             if downsample_block.downsamplers is not None:
                 for downsample in downsample_block.downsamplers:
                     hidden_states = downsample(hidden_states)
@@ -222,6 +233,12 @@ class MultiViewUNet(nn.Module):
             res_samples = down_block_res_samples[-len(upsample_block.resnets):]
             down_block_res_samples = down_block_res_samples[:-len(
                 upsample_block.resnets)]
+            
+            if m > 1:
+                _, _, h, w = hidden_states.shape
+                hidden_states = rearrange(hidden_states, '(b m) c h w -> b (m h w) c', m=m)
+                hidden_states = self.global_self_attn_upblocks[i](hidden_states)
+                hidden_states = rearrange(hidden_states, 'b (m h w) c -> (b m) c h w', m=m, h=h, w=w)
 
             if hasattr(upsample_block, 'has_cross_attention') and upsample_block.has_cross_attention:
                 for resnet, attn in zip(upsample_block.resnets, upsample_block.attentions):
@@ -240,12 +257,7 @@ class MultiViewUNet(nn.Module):
                     hidden_states = torch.cat(
                         [hidden_states, res_hidden_states], dim=1)
                     hidden_states = resnet(hidden_states, emb)
-            if m > 1:
-                _, _, h, w = hidden_states.shape
-                hidden_states = rearrange(hidden_states, '(b m) c h w -> b (m h w) c', m=m)
-                hidden_states = self.global_self_attn_upblocks[i](hidden_states)
-                hidden_states = rearrange(hidden_states, 'b (m h w) c -> (b m) c h w', m=m, h=h, w=w)
-
+            
             if upsample_block.upsamplers is not None:
                 for upsample in upsample_block.upsamplers:
                     hidden_states = upsample(hidden_states)
