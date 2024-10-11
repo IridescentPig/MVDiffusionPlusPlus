@@ -1,5 +1,5 @@
 import pytorch_lightning as pl
-from transformers import CLIPTextModel, CLIPTokenizer, CLIPImageProcessor
+from transformers import CLIPTextModel, CLIPTokenizer, CLIPImageProcessor, CLIPVisionModelWithProjection
 from .MVUNet import MultiViewUNet
 import torch
 from diffusers import AutoencoderKL, DDIMScheduler, UNet2DConditionModel
@@ -8,6 +8,14 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import numpy as np
 import os
 from PIL import Image
+
+def get_warmup_cosine_schedule(optimizer, warmup_steps, t_total, min_lr):
+    def lr_lambda(current_step):
+        if current_step < warmup_steps:
+            return float(current_step) / float(max(1., warmup_steps))
+        return \
+            max(min_lr, 0.5 * (1 + np.cos(np.pi * (current_step - warmup_steps) / float(max(1, t_total - warmup_steps)))))
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 class MultiViewDiffuison(pl.LightningModule):
     def __init__(self, config):
@@ -99,7 +107,11 @@ class MultiViewDiffuison(pl.LightningModule):
             param_groups.append({"params": params, "lr": self.lr * lr_scale})
         optimizer = torch.optim.AdamW(param_groups)
         scheduler = {
-            'scheduler': CosineAnnealingLR(optimizer, T_max=self.max_epochs, eta_min=1e-7),
+            # 'scheduler': CosineAnnealingLR(optimizer, T_max=self.max_epochs, eta_min=1e-7),
+            'scheduler': get_warmup_cosine_schedule(optimizer, 
+                                                    warmup_steps=self.max_epochs * 0.1, 
+                                                    t_total=self.max_epochs, 
+                                                    min_lr=1e-3),
             'interval': 'epoch',  # update the learning rate after each epoch
             'name': 'cosine_annealing_lr',
         }
