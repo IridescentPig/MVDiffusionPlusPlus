@@ -67,7 +67,7 @@ if __name__ == '__main__':
     
     checkpoint_callback = \
         ModelCheckpoint(
-            save_top_k=2, 
+            save_top_k=1, 
             monitor="train_loss",
             mode="min", 
             save_last=1,
@@ -92,4 +92,5 @@ if __name__ == '__main__':
         **config['Trainer']
     )
 
-    trainer.fit(model, train_loader, val_loader)
+    ckpt_path = config['train'].get('ckpt_path', None)
+    trainer.fit(model, train_loader, val_loader, ckpt_path=ckpt_path)
