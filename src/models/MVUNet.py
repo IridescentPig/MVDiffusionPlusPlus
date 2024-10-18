@@ -69,12 +69,9 @@ class SelfAttention(nn.Module):
         k = self.to_k(x) # b n (h d)
         v = self.to_v(x) # b n (h d)
 
-        # q = q.reshape(b, n, h, -1).transpose(1, 2) # b h n d
-        # k = k.reshape(b, n, h, -1).transpose(1, 2) # b h n d
-        # v = v.reshape(b, n, h, -1).transpose(1, 2) # b h n d
-        q = q.reshape(b, n, h, -1).transpose(1, 2).contiguous() # b h n d
-        k = k.reshape(b, n, h, -1).transpose(1, 2).contiguous() # b h n d
-        v = v.reshape(b, n, h, -1).transpose(1, 2).contiguous() # b h n d
+        q = q.reshape(b, n, h, -1).transpose(1, 2) # b h n d
+        k = k.reshape(b, n, h, -1).transpose(1, 2) # b h n d
+        v = v.reshape(b, n, h, -1).transpose(1, 2) # b h n d
 
         with torch.backends.cuda.sdp_kernel(
             enable_flash=True, 
@@ -194,7 +191,7 @@ class MultiViewUNet(nn.Module):
 
             if hasattr(downsample_block, 'has_cross_attention') and downsample_block.has_cross_attention:
                 for resnet, attn in zip(downsample_block.resnets, downsample_block.attentions):
-                    hidden_states = resnet(hidden_states, emb)
+                    hidden_states = resnet(hidden_states.contiguous(), emb)
 
                     hidden_states = attn(
                         hidden_states, encoder_hidden_states=prompt_embd
@@ -249,7 +246,7 @@ class MultiViewUNet(nn.Module):
                 for resnet, attn in zip(upsample_block.resnets, upsample_block.attentions):
                     res_hidden_states = res_samples[-1]
                     res_samples = res_samples[:-1]
-                    hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1)
+                    hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1).contiguous()
                     hidden_states = resnet(hidden_states, emb)
                     hidden_states = attn(
                         hidden_states, encoder_hidden_states=prompt_embd
@@ -258,7 +255,7 @@ class MultiViewUNet(nn.Module):
                 for resnet in upsample_block.resnets:
                     res_hidden_states = res_samples[-1]
                     res_samples = res_samples[:-1]
-                    hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1)
+                    hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1).contiguous()
                     hidden_states = resnet(hidden_states, emb)
             
             if upsample_block.upsamplers is not None:
