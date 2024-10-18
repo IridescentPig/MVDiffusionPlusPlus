@@ -105,7 +105,7 @@ def generate_batched_sorted_unique_random(batch_size, size, min_val=10, max_val=
     """
     assert size <= max_val - min_val, f"Size {size} is larger than the range of possible values {max_val - min_val}"
     
-    random_perm = torch.rand(batch_size, max_val - min_val).argsort(dim=1)
+    random_perm = torch.randperm(max_val - min_val).unsqueeze(0).expand(batch_size, -1)
     selected = random_perm[:, :size]
     sorted_values, _ = torch.sort(selected, dim=1)
     result = sorted_values + min_val

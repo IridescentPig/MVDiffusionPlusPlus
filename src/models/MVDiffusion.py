@@ -110,12 +110,13 @@ class MultiViewDiffuison(pl.LightningModule):
         for params, lr_scale in self.trainable_params:
             param_groups.append({"params": params, "lr": self.lr * lr_scale})
         optimizer = torch.optim.AdamW(param_groups)
+        warm_up_steps = min(200, 0.1 * self.max_epochs)
         scheduler = {
             # 'scheduler': CosineAnnealingLR(optimizer, T_max=self.max_epochs, eta_min=1e-7),
             'scheduler': get_warmup_cosine_schedule(optimizer, 
-                                                    warmup_steps=self.max_epochs * 0.1, 
+                                                    warmup_steps=warm_up_steps, 
                                                     t_total=self.max_epochs, 
-                                                    min_lr=1e-2),
+                                                    min_lr=1e-1),
             'interval': 'epoch',  # update the learning rate after each epoch
             'name': 'cosine_annealing_lr',
         }
@@ -195,10 +196,7 @@ class MultiViewDiffuison(pl.LightningModule):
         images = torch.cat([rgb, mask], dim=2) # (bs, m, 4, 512, 512)
         images = images.cpu().permute(0, 1, 3, 4, 2).float().numpy() # (bs, m, 512, 512, 4)
         images = (images * 255.).round().astype('uint8')
-        # images = ((batch['gt_images'] / 2+ 0.5) * 255).cpu().numpy().astype(np.uint8) # (bs, m, 4, 512, 512)
-        # images = images[:, :, :3, :, :].transpose(0, 1, 3, 4, 2) # (bs, m, 512, 512, 3)
         
-      
         # compute image & save
         if self.trainer.global_rank == 0:
             self.save_image(images_pred, images, batch_idx)

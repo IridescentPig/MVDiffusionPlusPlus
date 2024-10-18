@@ -75,17 +75,13 @@ if __name__ == '__main__':
         )
     
     save_dir = config['train'].get('save_dir', 'logs/tb_logs')
+    exp_name = config['train'].get('exp_name', args.exp_name)
     logger = TensorBoardLogger(
         save_dir=save_dir, 
-        name=args.exp_name, 
+        name=exp_name, 
         default_hp_metric=False
     )
 
-    # trainer = pl.Trainer.from_argparse_args(
-    #     args,
-    #     callbacks=[checkpoint_callback],
-    #     logger=logger
-    # )
     trainer = pl.Trainer(
         logger=logger,
         callbacks=[checkpoint_callback],
