@@ -38,7 +38,7 @@ class MultiViewUNetDataset(torch.utils.data.Dataset):
         self.split = split
         self.base_data_path = os.path.join(path, split)
         self.image_dirs = []
-        self.gen_num = config.get('gen_num', 32)
+        self.gen_num = config.get('gen_num', 8)
         for file in os.listdir(self.base_data_path):
             if os.path.isdir(os.path.join(self.base_data_path, file)):
                 self.image_dirs.append(os.path.join(self.base_data_path, file))
@@ -105,8 +105,13 @@ def generate_batched_sorted_unique_random(batch_size, size, min_val=10, max_val=
     """
     assert size <= max_val - min_val, f"Size {size} is larger than the range of possible values {max_val - min_val}"
     
-    random_perm = torch.randperm(max_val - min_val).unsqueeze(0).expand(batch_size, -1)
-    selected = random_perm[:, :size]
+    # random_perm = torch.randperm(max_val - min_val).unsqueeze(0).expand(batch_size, -1)
+    random_perms = []
+    for _ in range(batch_size):
+        random_perm = torch.randperm(max_val - min_val)
+        random_perms.append(random_perm)
+    random_perms = torch.stack(random_perms, dim=0)
+    selected = random_perms[:, :size]
     sorted_values, _ = torch.sort(selected, dim=1)
     result = sorted_values + min_val
     
